@@ -1,0 +1,1202 @@
+---
+alwaysApply: true
+---
+Overview
+Use the Tableland SDK in your JavaScript / TypeScript projects, with full Cloudflare D1 client compatibility.
+
+The Tableland SDK provides a minimal client that implements the Cloudflare D1 Database interface on top of the Tableland network. It can be used as a drop-in replacement to work with many community-created D1 tools and libraries. It also comes with a set of helper utilities for working with Tableland.
+
+Synopsis
+The @tableland/sdk comes with a few APIs: "primary" Cloudflare D1 client compatible API for Database connections, and two additional "secondary" APIs (Validator and Registry) that are unique to Tableland operations. Generally, users will leverage the primary database API for typical SQL operations, and the secondary APIs are useful when needing to interact directly with a Tableland Validator node or directly calling Tableland’s smart contracts (onchain access control, direct contract calls, etc.). Both ESM and CommonJS are supported.
+
+tip
+If you're looking for the SDK API reference, you can check it out here.
+
+There's also a Go SDK available here. It's still in beta, but it's a great way to get started with Tableland if you're a Go developer.
+
+Chain configuration
+Note the chain naming convention used by the Database connection roughly matches that of ethersjs. To dictate which chain your app should connect to, you can leverage a Signer where the signer will provide information corresponding to a particular chain. This includes any of the following chains, which have their defined chain name shown as well:
+
+ethereum => mainnet
+optimism => optimism
+arbitrum one => arbitrum
+arbitrum nova => arbitrum-nova
+base => base
+polygon => polygon
+filecoin => filecoin
+ethereum sepolia => sepolia
+optimism sepolia => optimism-sepolia
+arbitrum sepolia => arbitrum-sepolia
+base sepolia => base-sepolia
+polygon amoy => polygon-amoy
+filecoin calibration => filecoin-calibration
+local tableland => local-tableland
+In other words, the network name is only specified while instantiating a signer that then connects to the Database. It is not something that needs to explicitly be passed to the Database API but is inferred from the passed Signer.
+
+Signing transactions
+The default behavior for database connections prompt a wallet to connect via the browser. If no additional logic is implemented, the connection will leverage whatever the browser connects to. In other words, you must restrict which chains the Database can connect through by creating a signer, or the app will leverage whatever the browser wallet has specified as the chain.
+
+Third party libraries, like ethersjs and wagmi, are useful to create a signer and restrict which chains the app is using. These libraries may also be useful if passing an account private key stored locally in a .env file from a Node app.
+
+See the Signers page for more details.
+
+Using TypeScript
+The Tableland SDK supports both JavaScript and TypeScript. If you're using TypeScript, note that the Database API and all related classes and modules are written in TypeScript and provide a generic interface to fully typed queries and responses (if you want). Currently, if you do not provide types, it will default to unknown. This is probably not what you want, so passing in any is fine, but you can do a whole lot more if you provide a concrete type.
+
+Types can be provided on the Database constructor, on the Statement constructor (prepare), or callers can override them on any of the query/execution APIs directly (i.e., run, all, first, or raw).
+
+For example, start by defining the type associated with the table’s schema and use this type in the database constructor.
+
+Web frameworks
+If you're building a frontend application, check out the React, Next.js, or wagmi for a full example of how to use the SDK there. There are also starter template repos to get you up and running even more quickly.
+
+Get Started
+The JavaScript / TypeScript SDK allows developers to create tables on their chain of choice. Connect, create, and then interact with your tables thereafter with table writes and reads by using the primary Database API.
+
+Installation
+You can install the SDK from the command line—navigate to the project's directory and run the following:
+
+npm
+Yarn
+pnpm
+pnpm add @tableland/sdk
+
+
+note
+Note that Tableland uses ethersjs under the hood. The version being used is the latest version of ethersjs v6.
+
+Also note Tableland SDK uses the modern fetch API, which is only available starting with Node 18. If you're using an earlier version (Node 16 or before), you must provide global access to fetch as well as Headers to use the SDK. Check out this walkthrough for how to do this.
+
+Usage
+All table creates, writes, and reads fall under a single method: prepare.
+
+Start by creating an instance of a Database and then pass SQL, such as CREATE TABLE, INSERT INTO, UPDATE, DELETE, and SELECT statements. The prepare method returns a Statement object, which can then be used to execute the query with statement methods: all(), run(), raw(), and first().
+
+Alternatively, the Database has a batch() method that allows you to send multiple prepared statements in a single call to the network. This can have a huge performance impact as it reduces latency from network round trips to Tableland. Lastly, the Database's exec() method allows you to execute a string of SQL statements without preparing it first.
+
+Ethers
+Note that Tableland uses ethersjs under the hood. The version being used is the latest version of ethersjs v6.
+
+npm i --save ethers
+
+Local development
+It's easiest to also use Local Tableland when you're first getting started. Install the @tableland/local package globally (see here for details) and then start the local nodes. This will spin up a local Tableland validator node as well as a Hardhat node, allowing you to connect to chain ID 31337 and RPC URL http://127.0.0.1:8545 for testing purposes.
+
+npm
+Yarn
+pnpm
+pnpm add --save-dev @tableland/local
+
+And then spin the nodes up so that you can use Tableland without needing to connect to any testnets or mainnets:
+
+npx local-tableland
+
+Network configuration
+When connecting to a Database, the default will connect to Polygon Amoy and use a browser connection (e.g., MetaMask prompt), but setting up the network configuration using a Signer defines the desired chain connection. You'll need a to use a provider to connect the Signer using a private key; the provider will point to the desired chain for the database's connection.
+
+For example, you could choose to override the default browser-based connection and pass a private key to instantiate a signer, then, connecting it to the Database. But, if you'd like to use the default browser connection, simply instantiating with new Database() will prompt the browser wallet.
+
+import { Database } from "@tableland/sdk";
+import { Wallet, getDefaultProvider } from "ethers";
+
+const privateKey = "your_private_key";
+const wallet = new Wallet(privateKey);
+// To avoid connecting to the browser wallet (locally, port 8545).
+// For example: "https://polygon-amoy.g.alchemy.com/v2/YOUR_ALCHEMY_KEY"
+const provider = getDefaultProvider("http://127.0.0.1:8545");
+const signer = wallet.connect(provider);
+// Connect to the database
+const db = new Database({ signer });
+
+tip
+For more information, check out the Signers page.
+
+Creates
+Once you are ready to create a table, you can follow rather standard SQL convention. You’ll first import the Database class, create a new instance, and then pass a CREATE TABLE statement to prepare. For readability purposes, a prefix variable is created and passed using string templating within the prepare method.
+
+For context, the run method returns metrics about the query, such as transaction information.
+
+JavaScript
+TypeScript
+// Default to grabbing a wallet connection in a browser
+const db = new Database({ signer });
+
+// This is the table's `prefix`--a custom table value prefixed as part of the table's name
+const prefix = "my_table";
+const { meta: create } = await db
+  .prepare(`CREATE TABLE ${prefix} (id integer primary key, val text);`)
+  .run();
+await create.txn?.wait();
+
+// The table's `name` is in the format `{prefix}_{chainId}_{tableId}`
+const tableName = create.txn?.names[0] ?? ""; // e.g., my_table_31337_2
+
+At this point, the table exists, but it has no data.
+
+Note it is possible to create a table without a prefix value; you can use an empty string. In this case, do be careful with string interpolation. You’ll want to wrap the prefix passed to the prepare method in double quotes so that the "empty" table name is recognized and doesn't cause a SQL syntax error.
+
+const prefix = ""; // An empty string is a valid prefix, but make sure the CREATE TABLE statement sees it!
+const { meta: create } = await db
+  .prepare(`CREATE TABLE "${prefix}" (id integer primary key, name text);`)
+  .run();
+
+
+In general, double quotes around any table name in a statement is valid SQL.
+
+Writes
+The SDK allows for parameter binding to help simplify writing queries (includes both mutating and read queries). The ? is an anonymous parameter, which replaces the values in the statement with those in bind. Let’s extend the example for creating a table.
+
+JavaScript
+TypeScript
+// Insert a row into the table
+const { meta: insert } = await db
+  .prepare(`INSERT INTO ${tableName} (id, val) VALUES (?, ?);`)
+  .bind(0, "Bobby Tables")
+  .run();
+
+// Wait for transaction finality
+await insert.txn?.wait();
+
+When a table is written to, it includes two steps:
+
+Onchain interaction—this is what the wait method is waiting for (i.e., transaction finality).
+Offchain materialization—once wait is fulfilled, the mutating SQL query will have been materialized by the Tableland network and is now readable with the SELECT statement.
+tip
+A commonly used pattern with an INTEGER PRIMARY KEY constraint is to use it for auto-incrementing purposes, where you don't specify that column upon inserts so that the value will increment automatically. See here for more details.
+
+Reads
+Start by importing the Database and establishing a read-only connection. This allows developers to bypass any wallet connection since table reads are not an onchain operation. You’ll notice the all method (and run in the example below) is chained to the statement—more details are provided in the query statement methods section.
+
+JavaScript
+TypeScript
+const { results } = await db.prepare(`SELECT * FROM ${tableName};`).all();
+console.log(results);
+
+If you followed the steps above, this will log:
+
+[
+  {
+    "id": 0,
+    "val": "Bobby Tables"
+  }
+]
+
+Signers
+Access the Tableland network by first connecting to the base chain.
+
+A Database connection requires a Signer from the ethersjs package. This will provide a means for signing any table creation or mutations transactions sent to the Tableland network, and the connected provider will provide the chain information for the network you are connecting to.
+
+Connecting via the browser
+The default behavior when creating a Database instance is to trigger a browser wallet connection. Instead, you can also use third party libraries to handle this. The Tableland SDK comes packed with ethers under the hood, so installing it is not required in order to use its functionality.
+
+Similar to the default behavior, you can pass a custom signer to the Database by retrieving signer information from the browser.
+
+import { Database } from "@tableland/sdk";
+import { BrowserProvider } from "ethers";
+
+// Connect to provider from browser and get accounts
+const provider = new BrowserProvider(window.ethereum);
+await provider.send("eth_requestAccounts", []);
+
+// Pass the signer to the Database
+const signer = provider.getSigner();
+const db = new Database({ signer });
+
+Private key connections
+Within a Node app, you might instantiate a Database using dotenv and a PRIVATE_KEY stored and read from .env file. The provider URL will point to the chain you are trying to connect to, which could be a testnet, mainnet, or local node (e.g., hardhat or local-tableland).
+
+index.js
+import { Database } from "@tableland/sdk";
+import { Wallet, getDefaultProvider } from "ethers";
+import * as dotenv from "dotenv";
+dotenv.config();
+
+// You can also pull getDefaultProvider from the SDK's 'helpers' module
+
+const privateKey = process.env.PRIVATE_KEY;
+
+const wallet = new Wallet(privateKey);
+// To avoid connecting to the browser wallet (locally, port 8545),
+// replace the URL with a provider like Alchemy, Infura, Etherscan, etc.
+const provider = getDefaultProvider("http://127.0.0.1:8545"); // For example: "https://polygon-amoy.g.alchemy.com/v2/${process.env.YOUR_ALCHEMY_KEY}"
+const signer = wallet.connect(provider);
+// Connect to the database
+const db = new Database({ signer });
+
+
+Nonce manager
+It might be useful to use the NonceManager, which will automatically manage the nonce for you so you can blast the network with as many transactions as you would like. The main difference is that you wrap the signer in a NonceManager instance.
+
+import { Database } from "@tableland/sdk";
+import { NonceManager, Wallet, getDefaultProvider } from "ethers";
+import * as dotenv from "dotenv";
+dotenv.config();
+
+const privateKey = process.env.PRIVATE_KEY;
+
+const wallet = new Wallet(privateKey);
+// Replace with Alchemy, Infura, or Etherscan provider URL for the respective chain
+const provider = getDefaultProvider("http://127.0.0.1:8545");
+// Also demonstrates the nonce manager usage
+const baseSigner = wallet.connect(provider);
+const signer = new NonceManager(baseSigner);
+const db = new Database({ signer });
+
+// No need to await individual transactions (due to nonce manager)!
+
+tip
+Aside from ethers, other third party libraries can also be used. For example, if you are writing Tableland interactions inside a React app, you could leverage a signer from wagmi. Check out the wagmi framework quickstart for where to start.
+
+Prepared statements
+Use a single method for all table creates, reads, and writes.
+
+The Tableland SDK comes with a Database API that supports both static and prepared statements. A static statement is typical SQL where the values are part of the statement; prepared statement will bind values to the statement as part of a separate method.
+
+const preparedStmt = db
+  .prepare("SELECT * FROM users WHERE name = ?1")
+  .bind("Bobby Tables");
+const staticStmt = db.prepare(
+  'SELECT * FROM users WHERE name = "Bobby Tables"'
+);
+
+Parameter binding
+Tableland follows the SQLite convention for prepared statement parameter binding. This includes Ordered (?NNNN) and Anonymous (?) parameters, as well as all three forms of Named parameters. To bind a parameter, simply use the method stmt.bind(). This *****only works for parameters*********; a table’s name cannot be passed and bound as a parameter (e.g., SELECT * FROM ? ...).
+
+Syntax	Type	Description
+?NNN	Ordered	A question mark followed by a number NNN holds a spot for the NNN-th parameter.
+?	Anonymous	A question mark that is not followed by a number creates a parameter with a number one greater than the largest parameter number already assigned. This parameter format is provided for compatibility with other database engines. But because it is easy to miscount the question marks, the use of this parameter format is discouraged. Programmers are encouraged to use one of the symbolic formats below or the ?NNN format above instead
+:AAAA	Named	A colon followed by an identifier name holds a spot for a named parameter with the name :AAAA. To avoid confusion, it is best to avoid mixing named and numbered parameters.
+@AAAA	Named	An "at" sign works exactly like a colon, except that the name of the parameter created is @AAAA.
+$AAAA	Named	A dollar-sign followed by an identifier name also holds a spot for a named parameter with the name $AAAA.
+With anonymous binding, the order in which values are passed is the order assigned within the query. The ordered style allows you to specify a number that corresponds to position of the parameter within the statement, starting at 1.
+
+const stmt = db
+  .prepare("SELECT * FROM users WHERE name = ? AND age = ?")
+  .bind("John Doe", 41);
+
+const stmt = db
+  .prepare("SELECT * FROM users WHERE name = ?2 AND age = ?1")
+  .bind(41, "John Doe");
+
+More complex binding is possible using named parameters and complex data types, which are converted to basic types on the fly. Named parameters are prefixed with @, :, or $, and it is best to not mix named and numbered parameters, as it can get a bit confusing.
+
+const stmt = db
+  .prepare(
+    "INSERT INTO people VALUES (@first, ?, :first, ?, ?4, ?3, ?, $last);"
+  )
+  .bind(
+    45,
+    { first: "Bobby", last: "Tables" },
+    [54, true, Uint8Array.from([1, 2, 3])],
+    null
+  );
+
+Reusing prepared statements
+Prepared statements can be reused with new bindings; there is no need to redefine the prepared statement:
+
+const stmt = db.prepare("SELECT name, age FROM users WHERE age < ?1");
+const young = await stmt.bind(20).all();
+console.log(young);
+/*
+{
+  results: [...],
+  success: true
+  meta: {
+    duration: 31,
+  }
+}
+*/
+const old = await stmt.bind(80).all();
+console.log(old);
+/*
+{
+  results: [...],
+  success: true
+  meta: {
+    duration: 29,
+  }
+}
+*/
+
+Return object
+In the example above, the returned object from the prepare method is assigned to the stmt variable. Using the methods stmt.run(), stmt.all() and db.batch() will return an object that contains the results (if applicable), the success status, and a meta object with the internal duration of the operation in milliseconds, and any transaction information available.
+
+{
+  results: [], // may be empty if the query is a mutating query
+  success: boolean, // true if the operation was successful
+  error?: string, // undefined if no error
+  meta: {
+    duration: number, // duration of operation in milliseconds
+    txn?: {
+        tableIds: string[],
+        transactionHash: string,
+        blockNumber: number,
+        chainId: number,
+        names: string[],
+        prefixes: string[],
+        wait(): Promise<{ ... }>
+    }
+  }
+}
+
+See the query statement methods page for more details.
+
+Query statement methods
+Mutate your table values with additional access control.
+
+A Database will prepare a Statement and then let you choose how it should be executed. Each statement method comes with different behavior, tailored to your use case.
+
+Overview
+When calling the the Database API’s prepare method, it returns an object that supports a variety of query statement methods. Each one is asynchronous and should be called upon that response object—for demonstration purposes, the stmt variable is used to save the response from prepare and then further transform the result.
+
+const tableName = `healthbot_80002_1`;
+// Define the `Database` response object
+const stmt = db.prepare(`SELECT * FROM ${tableName};`);
+// Call a query statement method
+await stmt.all();
+
+All of these methods should be awaited. The following defines the full set of possible methods and how they should be called with some variable like stmt.
+
+await stmt.all()
+await stmt.run()
+await stmt.raw()
+await stmt.first( [column] )
+On Tableland, mutating transactions such as INSERT, DELETE, and UPDATE produce a two-phase transaction. Firstly, the transaction is sent to the registry contract and awaited. The returned txn information also contains a wait method that can be used to await finalization on the Tableland network. This method will also throw an exception if any runtime errors occur.
+
+Options
+All methods can take an optional opts object as the last parameter. This is an object that only has a single parameter for polling behavior: controller. It can be used to specify how long to wait for a transaction to be mined, and you can create your own, if desired. See the polling controller docs for more details.
+
+Response format
+The responses vary, depending on the query and method. For all(), raw(), and run(), if the statement is a create/mutate query, the response is an object with the following properties. Namely, the txn property will be included only for mutating queries, so if it's a read-only query, then the txn will not be included. (Read queries don't execute onchain, so there's not a transaction to return.) The general format is:
+
+{
+  results: [], // may be empty if the query is a mutating query
+  success: boolean, // true if the operation was successful
+  error?: string, // undefined if no error
+  meta: {
+    duration: number, // duration of operation in milliseconds
+    txn?: {
+        tableIds: string[],
+        transactionHash: string,
+        blockNumber: number,
+        chainId: number,
+        names: string[],
+        prefixes: string[],
+        wait(): Promise<{ ... }>
+    }
+  }
+}
+
+results: An array of query results. For mutating queries, this will always be an empty array. Read queries will return the results of the query.
+success: A boolean that indicates whether the query was successful or not (almost always true).
+error: An error string, if applicable. This will be undefined if the query was successful. Note that calling the wait() method on the txn object will throw an exception if any runtime errors occur.
+meta: A metadata object that contains the following properties:
+duration: The time it took to execute the query, in milliseconds.
+txn (only included for mutating queries): The transaction object, if applicable. This is only returned for mutating transactions such as CREATE TABLE, INSERT, UPDATE, and DELETE. Within this, there will be:
+tableIds: The ID of the table(s) that were mutated.
+transactionHash: The transaction hash of the transaction that was sent to the registry contract.
+blockNumber: The block number of the transaction.
+chainId: The chain ID of the transaction/network.
+names: The universally unique table name(s) of the mutated table(s).
+prefixes: The table(s) custom prefix.
+wait: An async function that can be used to await finalization on the Tableland network. This method will also throw an exception if any runtime errors occur.
+Thus, you wind up with something like the following for mutating queries vs. read queries:
+
+Mutate
+Read
+{
+  meta: {
+    duration: 242.74066734313965,
+    txn: {
+      tableIds: ["2"],
+      transactionHash: "0xbd4e2b6c62263bfa1b0d9b9d2c6ea3960b3484e2957d14da9995841c6e09fb5b",
+      blockNumber: 342,
+      chainId: 31337,
+      prefixes: ["my_table"],
+      names: ["my_table_31337_2"],
+      wait: [AsyncFunction: wait]
+    }
+  },
+  success: true,
+  results: [],
+  error: undefined
+}
+
+Now, for the first() and raw() methods, these behave a little differently. The raw() method will return only metrics for mutating queries, and read queries will get a simple, raw response of an array of arrays (each a row). The first() method will return the first row of the results, and it will be an object—or if you pass the column name, it will be an array of the just column value. See the details below for more context.
+
+all
+Returns all rows and metadata.
+
+The first example is a CREATE TABLE query, which is a mutating query—notice the meta.txn?.wait() pattern. The second example is a SELECT query, which is a read query (there's no txn property, so the a different pattern is used).
+
+const stmt = db.prepare(
+  "CREATE TABLE my_table (id integer primary key, val text)"
+);
+const { meta } = await stmt.all();
+await meta.txn?.wait();
+
+After you insert a few rows, you can run a SELECT query:
+
+const stmt = db.prepare("SELECT * FROM my_table LIMIT 3");
+const { results } = await stmt.all();
+
+The destructing lets you access the results property directly.
+
+[
+  {
+    "id": 1,
+    "val": "test 1",
+  },
+  {
+    "id": 2,
+    "val": "test 2",
+  },
+  {
+    "id": 3,
+    "val": "test 3",
+  }
+];
+
+run
+Runs the query but returns no results. Instead, run() returns the metrics only, so it's useful for write operations like UPDATE, DELETE or INSERT.
+
+const { meta } = await db
+  .prepare("INSERT INTO my_table (id, val) VALUES (?1, ?2)")
+  .bind(2, "test 2")
+  .run();
+await meta.txn?.wait();
+
+Thus, the meta will be:
+
+{
+  "duration": 242.74066734313965,
+  "txn": {
+    "tableIds": ["2"],
+    "transactionHash": "0xbd4e2b6c62263bfa1b0d9b9d2c6ea3960b3484e2957d14da9995841c6e09fb5b",
+    "blockNumber": 342,
+    "chainId": 31337,
+    "prefixes": ["my_table"],
+    "names": ["my_table_31337_2"]
+  }
+}
+
+raw
+Returns all rows and metadata.
+
+For read queries, this has similar functionality as all(), but returns an array of rows instead of objects. Mutating queries operate the same as all().
+
+const stmt = db.prepare("SELECT * FROM my_table");
+const results = await stmt.raw();
+
+So, results will be an array of arrays, each representing a row:
+
+[
+  [1, "test 1"],
+  [2, "test 2"],
+  [3, "test 3"]
+];
+
+first
+Returns the first row of the results.
+
+It should only be used with SELECT queries; this does not return metadata like the other methods. Instead, it returns the object directly. It also takes an optional column parameter.
+
+For example, get a specific column from the first row:
+
+const stmt = db.prepare("SELECT * FROM my_table");
+const total = await stmt.first("id");
+
+This will simply give you the result of the first row's id column within an array: [ 1 ]
+
+Or, to get all of the columns from the first row:
+
+const stmt = db.prepare("SELECT * FROM my_table");
+const values = await stmt.first();
+
+This will simply give you the result as an object:
+
+{
+  "id": 1,
+  "val": "test 1"
+}
+
+If the query returns no rows, then first() will return null. And if the query returns rows, but column does not exist, then first() will throw an exception.
+
+Batching statements & operations
+Get up an running with the Tableland SDK.
+
+The following methods act only on the the an instance of Database. They provide more performant ways of writing SQL statement or performing migration tasks.
+
+Options
+All methods can take an optional controller as the last parameter. This can control polling behavior to specify how long to wait for a transaction to be mined, and you can create your own, if desired. See the polling controller docs for more details.
+
+Batch statements
+Batching sends multiple SQL statements inside a single call to the network. This can have a huge performance impact as it reduces latency from network round trips to Tableland. This implementation guarantees that each statement in the list will execute and commit, sequentially, non-concurrently.
+
+You can batch queries that touch different tables, but you cannot have different statement types in a single batch call. When batching queries, they must only correspond to the same type of query. For example, you can batch multiple mutating statements (INSERT, UPDATE and DELETE) together, but you cannot batch something like an INSERT with a CREATE TABLE nor a SELECT statement.
+
+Batched statements are similar to SQL transactions. If a statement in the sequence fails, then an error is returned for that specific statement, and it aborts or rolls back the entire sequence.
+
+tip
+If you're looking for an in-depth example of breaking up queries for batch execution, check out the chunking queries walkthrough.
+
+batch
+To send batch statements, you must feed batch() with a list of prepared statements and get back the results. That is, these do not have a statement method attached (e.g., .all()) since the batch method will handle the execution. You can also construct batches reusing the same prepared statement.
+
+Let's review an example with different mutating queries that touch different tables:
+
+const db = new Database({ signer });
+await db.batch([
+  db.prepare("INSERT INTO my_table(id) VALUES ?1").bind(1234),
+  db.prepare("UPDATE my_table SET id = ?1 WHERE id = ?2").bind(5678, 1234),
+  db.prepare("INSERT INTO some_other_table(id) VALUES (999)"),
+  db.prepare("DELETE FROM some_other_table"),
+]);
+
+Response format
+The query type affects the returned value. See the query statement method docs for more details on these properties.
+
+For batch(), if the statement is a mutating query, the response is an array containing objects with the following properties. That is, the txn property will be included only for create/mutate queries. Since these are executed atomically, if you pass multiple statements, the response will be a single object within the array where the txn property shows the atomic transaction details. But, if it's a batch() of read-only query, then the txn will not be included. If you're passing multiple SELECT statements, the array will contain multiple response objects, each returning query results.
+
+Thus, you wind up with something like the following for mutating queries vs. read queries:
+
+Mutate
+Read
+[
+  {
+    meta: {
+      duration: 242.74066734313965,
+      txn: {
+        tableIds: ["2", "3"],
+        transactionHash: "0xbd4e2b6c62263bfa1b0d9b9d2c6ea3960b3484e2957d14da9995841c6e09fb5b",
+        blockNumber: 342,
+        chainId: 31337,
+        prefixes: ["my_table", "my_other_table"],
+        names: ["my_table_31337_2", "my_other_table_31337_3"],
+        wait: [AsyncFunction: wait]
+      }
+    },
+    success: true,
+    results: [],
+    error: undefined
+  }
+]
+
+Batching operations
+There also exists an exec() method for the Database, which should only be used for maintenance and one-shot tasks. One important callout explained below is how the response format differs from all other database and statement methods. After calling exec(), the meta property is not included, so the typical await meta.txn?.wait() pattern will not work. Instead, you must use await txn?.wait() since it's now a top-level field.
+
+exec
+This method executes one or more queries directly without prepared statements or parameters binding. This method can have poorer performance (prepared statements can be reused in some cases) and, more importantly, is less safe. Only use this method for maintenance and one-shot tasks (e.g., migration jobs). The input can be one or multiple queries separated by the standard ;. If an error occurs, an exception is thrown with the query and error messages (see below for Errors).
+
+Currently, the entire string of statements is submitted as a single transaction. In the future, more "intelligent" transaction planning, splitting, and batching may be used.
+
+const db = new Database({ signer });
+const migration = await fetch("./migration.sql");
+const execMigration = await db.exec(migration.text());
+await execMigration.txn?.wait();
+
+// Although not advised, this demonstrates how to execute multiple statements
+const execWrites = await db.exec(
+  "insert into my_table values (1); insert into my_table values (2);"
+);
+await execWrites.txn?.wait();
+
+// But read-only queries must be a single statement
+const execRead = await db.exec("select * from my_table;");
+
+Response format
+The query type affects the returned value. See the query statement method docs for more details on these properties, but the format is slightly different from all other database and statement methods.
+
+Recall the "typical" response format includes the duration and txn properties within a meta object, and it always returns a result, even if it's empty. The exec() method moves these up into a top-level response, does not include an error property, and includes a count property to represent the number of statements. It also conditionally includes a txn property for mutating queries, or a results property for read-only queries (one or the other, but not both).
+
+Thus, the response format is as follows:
+
+Mutate
+Read
+{
+  count: number,
+  duration: number,
+  txn: { ... }
+};
+
+You wind up with something like the following for mutating queries vs. read queries:
+
+Mutate
+Read
+{
+  count: 2,
+  duration: 298.28783416748047,
+  txn: {
+    tableIds: ["2"],
+    transactionHash: "0x8f83ed5e6fd5956098cdcf65321cf5a9804799546c122eb9507e9d4ede25ae4f",
+    blockNumber: 11869,
+    chainId: 31337,
+    wait: [AsyncFunction: wait],
+    prefixes: [ "my_table" ],
+    names: [ "my_table_31337_2" ]
+  }
+}
+
+Table aliases
+Simplify development using table aliases instead of raw auto-generated table names.
+
+Tableland tables are created in a globally unique format. However, this can disrupt the development workflow as it requires developers to adhere to the exact table name, which can be cumbersome to remember and type out. Instead, you can leverage table aliases to enhance the development experience and configure custom table names used locally by the SDK.
+
+Overview
+When instantiating a Database, the aliases parameter can be used to configure table aliases within a JSON file. The aliases parameter can make use of the @tableland/node-helpers synchronous method jsonFileAliases('...') where the configuration file's path is passed to it. Or, for asynchronous operations or non-Node.js environments, you can set up your own implementation. Table reads and writes will automatically use this file upon Database.prepare(...) method calls.
+
+An alias is, in a sense, the same as a table prefix but with local uniqueness restrictions and only scoped to your project alone (i.e., has no relationship to the broader Tableland network).
+
+Under the hood, aliases contains an object with read and write functions. The read function must return a mapping of the project-scoped table alias to the universally unique Tableland table name—for example, { "users": "users_31337_2" }. The write function will be called any time a Database instance is used to create a table and modifies the JSON file, writing the mapping to it.
+
+note
+All project aliases must be unique. If you try to create a table with a preexisting alias saved in your config file, it'll overwrite the existing mapping.
+
+Installation
+From your project, install the SDK and node helpers:
+
+npm
+Yarn
+pnpm
+pnpm add @tableland/sdk @tableland/node-helpers
+
+Then, in your source code, import these packages:
+
+import { Database } from "@tableland/sdk";
+import { jsonFileAliases } from "@tableland/node-helpers";
+
+Database aliases parameter
+When you use aliases, you pass them as the aliases value upon instantiating a new Database. The aliases parameter can make use of the node-helpers method jsonFileAliases('...') for Node.js environments, and it's synchronous in nature. For non-Node.js environments, you'll have to implement the read and write functions yourself—this can be asynchronous, if desired.
+
+For context, the type and interface below underpin the aliases parameter, shown in TypeScript. A NameMapping is a simple object that maps a table alias to a table name. The AliasesNameMap is an object that contains the read and write functions; the former returns an object of table names to table aliases, and the latter will write aliases to the config file. This all happens under the hood, so you don't have to worry about it once you set it up.
+
+@tableland/sdk/helpers
+type NameMapping = Record<string, string>;
+
+interface AliasesNameMap {
+  read: (() => Promise<NameMapping>) | (() => NameMapping);
+  write: ((map: NameMapping) => Promise<void>) | ((map: NameMapping) => void);
+}
+
+Node.js environment
+The @tableland/node-helpers is designed to operate in a Node.js environment, creating a file on your local machine that contains the table aliases.
+
+As a best practice, the alias config file should exist in your project's directory to ensure the mappings from table aliases to the generated names are persisted and do not get lost. It will ultimately contain all of your table aliases. You can either create a file (e.g., name it tableland.aliases.json), or you can simply pass a path to a directly or path to a non-existent file to have one created for you. All of these would be valid ways to define the aliases parameter:
+
+Path to a file that exists: jsonFileAliases("/path/to/tableland.aliases.json")
+Path to a directory without an existing aliases file: jsonFileAliases("./")
+This will create one called tableland.aliases.json in the directory.
+Path to a custom filename that doesn't exist: jsonFileAliases("./my-aliases.json")
+This will create one with the custom name in the directory.
+First, import jsonFileAliases from the node-helpers package into your source code; this is a utility function that allows you to simply provide the path to your aliases file.
+
+import { Database } from "@tableland/sdk";
+import { jsonFileAliases } from "@tableland/node-helpers";
+
+const db = new Database({
+  signer,
+  // Specify the path to your aliases config file
+  aliases: jsonFileAliases("./tableland.aliases.json"),
+});
+
+You'll start by creating a table. Note how the prepare statements for writes and reads make use of the table prefix used in the create statement instead of the raw, generated table name ({prefix}_{chainId}_{tableId}).
+
+// Create a table with the custom prefix `main`, which is then used as an alias
+const { meta: create } = await db
+  .prepare(`CREATE TABLE my_table (id integer primary key, val text);`)
+  .run();
+await create.txn?.wait();
+
+// Write to the table using the alias `main`, instead of the raw table name
+const { meta: write } = await db
+  .prepare(`INSERT INTO my_table (val) VALUES ('test')`)
+  .run();
+await write.txn?.wait();
+
+// Also, read from the table with the alias
+const { results } = await db.prepare(`SELECT * FROM my_table`).all();
+
+Creating a table will automatically write the mapping to the tableland.aliases.json file. The aliases file will look something like the following (e.g., if you create a main prefixed table using Local Tableland):
+
+{
+  "main": "my_table_31337_2"
+}
+
+Web environment
+In a non-Node.js environment or one that requires asynchronous read/write operations, you'll have to manage the implementation based on your project's capabilities.
+
+Async implementation
+If you're using an asynchronous implementation, you'll need to make sure the read and write functions are asynchronous. For example, you can use a Promise to read/write to a file.
+
+JavaScript
+TypeScript
+import fs from "fs";
+import path from "path";
+
+const aliasesFile = new Promise(async (resolve, reject) => {
+  try {
+    const file = path.join(process.cwd(), `tableland.aliases.json`);
+    fs.access(file, fs.constants.F_OK, (err) => {
+      if (err) {
+        fs.writeFileSync(file, JSON.stringify({}, null, 2));
+      }
+      resolve(file);
+    });
+  } catch (e) {
+    reject(e);
+  }
+});
+
+const aliases = {
+  read: async function () {
+    const jsonBuf = fs.readFileSync(await aliasesFile);
+    return JSON.parse(jsonBuf.toString());
+  },
+  write: async function (nameMap) {
+    const jsonBuf = fs.readFileSync(await aliasesFile);
+    const jsonObj = { ...JSON.parse(jsonBuf.toString()), ...nameMap };
+    fs.writeFileSync(await aliasesFile, JSON.stringify(jsonObj, null, 2));
+  },
+};
+
+In-memory implementation
+To further demonstrate its functionality, let's review how this setup works with an in-memory implementation. This might be especially useful if you're writing tests and do not want to read from a local file. We'll use a nameMap variable that stores an empty object, but again, in practice, this should be a JSON file so that the mappings are persisted.
+
+JavaScript
+TypeScript
+const nameMap = {};
+
+const aliases = {
+  read: async function () {
+    return nameMap;
+  },
+  write: async function (names) {
+    for (const uuTableName in names) {
+      nameMap[uuTableName] = names[uuTableName];
+    }
+  },
+};
+
+The read function will return the nameMap object, while the write function will update the nameMap object with the provided table aliases.
+
+Multiple table aliases
+One important callout: every time you create a table, it will overwrite mappings in the file specified in the aliases parameter. So, if you were to execute CREATE TABLE statements individually instead of batching them together, the config file will be overwritten upon each statement successfully resolving.
+
+For example, after the last statement executes, only the table_3's alias will exist in the config file.
+
+await db.prepare(`CREATE TABLE table_1 (id int, val text)`).run();
+await db.prepare(`CREATE TABLE table_2 (id int, val text)`).run();
+await db.prepare(`CREATE TABLE table_3 (id int, val text)`).run();
+
+Instead, you'll want to do the following, which will ensure all three table aliases are written to the config file and later accessible in reads/writes.
+
+const [{ meta }] = await db.batch([
+  db.prepare(`CREATE TABLE table_1 (id int, val text)`),
+  db.prepare(`CREATE TABLE table_2 (id int, val text)`),
+  db.prepare(`CREATE TABLE table_3 (id int, val text)`),
+]);
+
+Registry API
+Use the Registry API for directly calling the Tableland registry smart contract, such as setting access controllers.
+
+The Database API provides a surface area that combines the Validator and Registry functionality. However, the Registry class allows developers to directly interact with the Tableland registry contract, which exposes a few additional features that aren't part of the Database class.
+
+Installation
+If you haven't already, make sure the SDK is installed in your project:
+
+npm
+Yarn
+pnpm
+pnpm add @tableland/sdk
+
+Setup
+The Registry class requires a signer param to connect to and interact with a base chain. There are various ways to do this, but we'll show a simple example using a Wallet from ethersjs, along with Local Tableland / Hardhat as the chain.
+
+There are a couple ways to instantiate the Registry. You can pass an ethers signer to the constructor:
+
+import { Registry } from "@tableland/sdk";
+import { Wallet, getDefaultProvider } from "ethers";
+
+const privateKey =
+  "59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
+const wallet = new Wallet(privateKey);
+const provider = getDefaultProvider("http://127.0.0.1:8545");
+const signer = wallet.connect(provider);
+
+// Pass a signer to the constructor
+const registry = new Registry({ signer });
+
+Or, pass a signer to the forSigner method:
+
+const registry = await Registry.forSigner(signer);
+
+listTables
+Gets the list of table IDs of the requested owner. It takes a single owner parameter, which is the address of the owner to query—or if none provided, it'll default to the connected signer's address.
+
+const list = await registry.listTables();
+// Or, pass an address as a param, like "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+console.log(list);
+
+This will log an array of table IDs and its chain ID:
+
+[{ tableId: "2", chainId: 31337 }];
+
+setController
+Sets the controller for a table, where the controller can be an EOA or contract address. The caller must be the table's owner, and the parameters include an object with:
+
+tableName: The name of the table to transfer in the format {name}_{chainId}_{tableId}.
+controller: The address of the controller (EOA or contract).
+const tx = await registry.setController({
+  tableName: "my_table_31337_2",
+  controller: "0xdD2FD4581271e230360230F9337D5c0430Bf44C0",
+});
+const rec = await tx.wait();
+const { transactionHash } = rec;
+console.log(transactionHash); // 0x90524fa82043d645bd0a843f627aeef8b013307e39ba1d1474a12c40cb381ba3
+
+
+The full return an object includes all of the "typical" ethersjs transaction details, including the hash and input parameters.
+
+getController
+Get the table's controller by providing an object with chainId and tableId fields, returning the address of the controller. Note that tableId must be converted to a string.
+
+const controller = await registry.getController({
+  chainId: 31337,
+  tableId: "2",
+});
+console.log(controller); // 0xdD2FD4581271e230360230F9337D5c0430Bf44C0
+
+lockController
+Locks the controller for a table forever, where the controller can be an EOA or contract address. The caller must be the table's owner, and the parameters include an object with:
+
+chainId: The chain ID to lock the controller on.
+tableId: The table ID to lock the controller on.
+const tx = await registry.lockController({
+  chainId: 31337,
+  tableId: "2",
+});
+const rec = await tx.wait();
+const { transactionHash } = rec;
+console.log(transactionHash); // 0x90524fa82043d645bd0a843f627aeef8b013307e39ba1d1474a12c40cb381ba3
+
+
+The full return an object includes all of the "typical" ethersjs transaction details.
+
+safeTransferFrom
+Safely transfers the ownership of a given table ID to another address. The caller must be the table's owner or an approved operator (i.e., this acts like any NFT transfer would). The parameters include an object with:
+
+tableName: The name of the table to transfer in the format {name}_{chainId}_{tableId}.
+to: The address to transfer the table to.
+const tx = await registry.safeTransferFrom({
+  tableName: "my_table_31337_2",
+  to: "0xdD2FD4581271e230360230F9337D5c0430Bf44C0",
+});
+const rec = await tx.wait();
+const { transactionHash } = rec;
+console.log(transactionHash); // 0xa2c551c3b3a4b2a81eb33c2e2b7a2614d771196c7dc5f193b20250b34b6b451b
+
+
+The full return an object includes all of the "typical" ethersjs transaction details.
+
+create
+Create a table directly with the registry smart contract. The parameters include an object with:
+
+statement: The SQL statement to create the table.
+chainId: The chain ID to create the table on.
+const tx = await registry.create({
+  statement: "CREATE TABLE my_table (id INTEGER PRIMARY KEY, name TEXT)",
+  chainId: 31337,
+});
+const rec = await tx.wait();
+const { transactionHash } = rec;
+console.log(transactionHash); // 0x322fcd14d7290dbe25e9eac0c371905d9b7529eb9e92a9be514f66ce577b22e5
+
+
+The full return an object includes all of the "typical" ethersjs transaction details.
+
+mutate
+Runs a mutating SQL statement for the caller where the caller must be authorized to mutate table data. The parameters include an object with:
+
+statement: The SQL statement to create the table.
+chainId: The chain ID to create the table on.
+tableId: The table ID to mutate. Note that this must be a string.
+const tx = await registry.mutate({
+  statement: "insert into test_31337_32 values (1)",
+  chainId: 31337,
+  tableId: "27",
+});
+const rec = await tx.wait();
+const { transactionHash } = rec;
+console.log(transactionHash); // 0x1df063ebae1792170042d6d06d5bd5dd6a638a89d75db8e445a8c3d75aac5637
+
+
+The full return an object includes all of the "typical" ethersjs transaction details.
+
+Validator API
+The Validator API allows for direct access to a Tableland Validator node.
+
+Setting up a validator node connection starts by importing a Validator. The methods defined in the Gateway REST API are exposed in the SDK, such as checking the health of a node or getting a table's name. Note that a validator can use a Database instance's config, which requires a baseUrl param in order to connect to and query a validator node. Alternatively, the SDK's helpers module provides a getBaseUrl function that can be used to determine the correct URL for a given chain ID.
+
+Installation
+If you haven't already, make sure the SDK is installed in your project:
+
+npm
+Yarn
+pnpm
+pnpm add @tableland/sdk
+
+Setup
+The Validator class requires a baseUrl param to connect to a validator node. The base URL is one of the following, and the getBaseUrl helper function can be used to determine the correct one for your chain:
+
+https://tableland.network/api/v1/ (mainnets)
+https://testnets.tableland.network/api/v1/ (testnets)
+http://localhost:8080/api/v1/ (local)
+All of these examples will use Local Tableland, so the chain ID is defined as 31337, but you can use this on any supported network. There are few ways to set up the Validator class. You can use the forChain method with a chain ID or ethersjs chain name:
+
+import { Validator } from "@tableland/sdk";
+
+// Pass a chain ID or ethersjs chain name to the `forChain` method
+const validator = Validator.forChain(31337); // Replace with your chain ID
+
+The getBaseUrl helper function can be used to determine the correct URL for your chain:
+
+import { Validator, helpers } from "@tableland/sdk";
+
+// Pass the `getBaseUrl` helper function a chain ID (or ethersjs chain name)
+const baseUrl = helpers.getBaseUrl(31337); // Replace with your chain ID
+const validator = new Validator({ baseUrl });
+
+Or, you can use the Database class's config to instantiate a Validator instance:
+
+import { Database, Validator, helpers } from "@tableland/sdk";
+
+// Instantiate a `Database` instance with a `baseUrl` param; no `signer` needed
+const db = new Database({
+  baseUrl: helpers.getBaseUrl(31337), // Replace with your chain ID
+});
+
+// Pull info from an existing Database instance
+const validator = new Validator(db.config);
+
+isHealthy
+Get health status of a validator node; returns true if healthy, false otherwise.
+
+// Check health info
+const isHealthy = await validator.health();
+console.log(isHealthy); // true
+
+version
+Get version information, returning version information about the validator daemon.
+
+const version = await validator.version();
+console.log(version);
+
+This will return an object with the following properties:
+
+{
+  gitCommit: 'bd7c3ab',
+  gitBranch: 'HEAD',
+  gitState: 'clean',
+  gitSummary: 'v1.9.0',
+  buildDate: '2023-11-17T19:07:13Z',
+  binaryVersion: 'git'
+}
+
+getTableById
+Get table information by providing an object with chainId and tableId fields, returning the table's name, schema, and other metadata. Note that tableId must be converted to a string.
+
+const tableInfo = await validator.getTableById({
+  chainId: 31337,
+  tableId: "1", // Must be a string
+});
+console.log(tableInfo);
+
+This will log something like:
+
+{
+  name: 'healthbot_31337_1',
+  externalUrl: 'http://localhost:8080/api/v1/tables/31337/1',
+  animationUrl: 'https://render.tableland.xyz/31337/1.html',
+  image: 'https://bafkreifhuhrjhzbj4onqgbrmhpysk2mop2jimvdvfut6taiyzt2yqzt43a.ipfs.dweb.link',
+  schema: { columns: [ { name: 'counter', type: 'integer' } ] },
+  attributes: [ { displayType: 'date', traitType: 'created', value: 1700348503 } ]
+}
+
+queryByStatement
+Query the Tableland network directly and get the results of a SQL read query (i.e., no writes or creates). The parameters include an object with:
+
+statement (required): The SQL SELECT statement to execute.
+format (optional): Can be "objects" (default) or "table".
+extract (optional): A boolean to extract the results.
+unwrap (optional): A boolean to unwrap the results.
+See the Gateway API's query formatting docs for more information on the optional parameters noted above; the extract and unwrap are only for special cases with "objects". Here's an example of a simple query that formats the output as either "objects" or "table":
+
+objects
+table
+const query = await validator.queryByStatement({
+  statement: "SELECT counter FROM healthbot_31337_1",
+  format: "objects", // default
+});
+console.log(query);
+// [
+// 	{
+// 		counter: 1
+// 	}
+// ]
+
+To use the unwrap & extract functionality, you can target a single column and keep the output as the default "objects" format:
+
+unwrap only
+extract only
+extract only
+const query = await validator.queryByStatement({
+  statement: "SELECT counter FROM healthbot_31337_1",
+  unwrap: true,
+});
+console.log(query);
+// Unwraps the surrounding array
+// { counter: 1 }
+
+receiptByTransactionHash
+Get transaction status from a create or write transaction hash. The parameters include an object with:
+
+chainId: The chain ID of the transaction.
+transactionHash: The transaction hash of the create or write transaction.
+const receipt = await validator.receiptByTransactionHash({
+  chainId: 31337,
+  transactionHash:
+    "0x577789da0325fc53bffaa845ba7a24500ccf058d8a3dd001774e8bf118646eb7",
+});
+console.log(receipt);
+
+If the transaction exists, the it'll log table and chain information, meaning, the transaction was seen by the validator:
+
+{
+  tableIds: [ '2' ],
+  transactionHash: '0x577789da0325fc53bffaa845ba7a24500ccf058d8a3dd001774e8bf118646eb7',
+  blockNumber: 14664,
+  chainId: 31337
+}
+
+If the transaction is still pending and has not been seen by the validator, it'll throw a 404 error with Not found.
+
+pollForReceiptByTransactionHash
+Polls for the status of a given transaction receipt by chainId and transactionHash, waiting until its complete. See the polling transactions docs for more advanced polling usage.
+
+const poll = await validator.pollForReceiptByTransactionHash({
+  chainId: 31337,
+  transactionHash: 0x577789da0325fc53bffaa845ba7a24500ccf058d8a3dd001774e8bf118646eb7,
+});
+console.log(poll);
+
+This will log the same response as above but will wait for the transaction to complete before returning the response.
+
+Helper methods
+Helpers that come part of the Tableland SDK.
+
+The page outlines a few of the most useful helper methods exported from the @tableland/sdk package. You can find the full suite of methods and types available in the API Reference.
+
+Setup
+To use the helpers, you'll need to import them from the SDK:
+
+import { helpers } from "@tableland/sdk";
+
+The subsequent examples will show how to call each of these methods on the helpers module, such as helpers.createPollingController(). Alternatively, you can import them directly:
+
+import { createPollingController } from "@tableland/sdk/helpers";
+
+getBaseUrl
+The validator base URL can be retrieved using the getBaseUrl method to check what URL should be used when making direct requests to the validator API.
+
+const baseUrl = helpers.getBaseUrl(11155111); // Or pass the chain name, e.g., `sepolia`
+// https://testnets.tableland.network/api/v1
+
+getChainInfo
+The getChainInfo method returns the chain information for the current network. This includes the chain name, chain ID, Tableland registry contract address, and validator information (base URL, polling timeout, and polling interval).
+
+const chainInfo = helpers.getChainInfo(11155111); // Or pass the chain name, e.g., `sepolia`
+// {
+//   chainName: 'sepolia',
+//   chainId: 11155111,
+//   contractAddress: '0xc50C62498448ACc8dBdE43DA77f8D5D2E2c7597D',
+//   baseUrl: 'https://testnets.tableland.network/api/v1',
+//   pollingTimeout: 40000,
+//   pollingInterval: 1500
+// }
+
+getContractAddress
+To simply get the Tableland registry contract address, you can use the getContractAddress method.
+
+const contractAddress = helpers.getContractAddress(11155111); // Or pass the chain name, e.g., `sepolia`
+// 0xc50C62498448ACc8dBdE43DA77f8D5D2E2c7597D
+
+
+createPollingController
+See the polling docs for more information on how to use the PollingController object. It's designed to control the polling behavior for Database transaction polling and validator query materialization.
+
+createSignal
+A Signal is a wrapper around the AbortSignal object and an abort() method to cancel the signal. It can be used to cancel a request or polling operation.
+
+const signal = helpers.createSignal();
+signal.abort(); // Cancels the signal
+
+extractChainId
+If you have an existing Database instance, you can extract the chain ID by passing the Database configuration object to the extractChainId method.
+
+// Set up a `signer` and pass to the `Database` constructor
+const db = new Database({ signer });
+const chainInfo = await helpers.extractChainId(db.config);
+// 31337
+
+isTestnet
+The isTestnet method can be used to determine if the current network is a testnet, returning true or false based on the chain ID or name.
+
+const isTestnet = helpers.isTestnet(11155111); // Or pass the chain name, e.g., `sepolia`
+// true
+
+overrideDefaults
+You can override the chain and database settings by passing an object with the new values to the overrideDefaults method, which only needs to be executed.
+
+helpers.overrideDefaults(1, {
+  chainName: "mainnet",
+  chainId: 1,
+  contractAddress: "0x012969f7e3439a9B04025b5a049EB9BAD82A8C12",
+  baseUrl: "https://rpc.flashbots.net",
+  pollingTimeout: 30000,
+  pollingInterval: 1000,
+});
+
+normalize
+The @tableland/sqlparser comes as part of the SDK and can be used to normalize SQL queries. See the full docs on the SQL parser for more information, but here's a simple example:
+
+const normalize = (sql) => helpers.normalize(sql);
+const statement = `create table my_table ("invalid-$" int)`;
+const normalized = await normalize(statement);
+// Error: error parsing statement: syntax error at position 31 near '-'
+
+supportedChains
+You can retrieve an array of all of the chains Tableland supports, along with relative chain information.
+
+const chains = helpers.supportedChains;
+// {
+//   mainnet: {
+//     chainName: 'mainnet',
+//     chainId: 1,
+//     contractAddress: '0x012969f7e3439a9B04025b5a049EB9BAD82A8C12',
+//     baseUrl: 'https://tableland.network/api/v1',
+//     pollingTimeout: 40000,
+//     pollingInterval: 1500
+//   },
+//   ...
+// ]
+
+validateTableName
+The validateTableName method can be used to validate a table name and extract the prefix, chain ID, and table ID.
+
+const tableParts = await helpers.validateTableName("my_table_31337_2");
+// {
+//   prefix: 'my_table',
+//   chainId: 31337,
+//   tableId: 2,
+//   name: 'my_table_31337_2'
+// }

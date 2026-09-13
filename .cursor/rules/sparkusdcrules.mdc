@@ -1,0 +1,245 @@
+---
+description: Spark USDC (spUSDC) is a Spark Savings V2 Vault that utilizes the Spark Liquidity Layer to generate yield through different yield-generating strategies.
+alwaysApply: false
+---
+Spark USDC
+Spark USDC (spUSDC) is a Spark Savings V2 Vault that utilizes the Spark Liquidity Layer to generate yield through different yield-generating strategies. The spUSDC token enables users to receive returns while still being able to transfer, stake, lend and use it in any way they want. You can find an overview of supported networks and token addresses below.
+
+Note: Spark USDC is part of the Savings V2 vaults, managed by Spark Governance. The vault deploys assets through the Spark Liquidity Layer.
+
+spUSDC increases in value over time, as its USDC denominated value gradually increases. spUSDC is an accumulating token, not a rebasing token.
+
+How it works
+90% of deposits are allocated through the Spark Liquidity Layer into yield-generating strategies
+The remaining 10% stays in the contract as liquidity for instant withdrawals
+The Spark Liquidity Layer ensures there is always ample liquidity for deposits and withdrawals
+Yield Source
+The vault rate is anchored to the Sky Savings Rate as a minimum rate. Deposits are deployed through the Spark Liquidity Layer (SLL), which leverages the Sky Savings Rate as a base and can deploy into additional accepted strategies to optimize yield above this minimum. The vault rate is variable based on market dynamics and the underlying yield strategies.
+
+Rates are managed by Spark Governance based on market conditions and updated periodically.
+
+You can always find the current rate on the Savings page in the Spark App.
+
+Liquidity
+The Spark Liquidity Layer ensures sufficient liquidity for deposits and withdrawals. When using the Sky PSM for USDC/USDS swaps, there is no slippage beyond gas fees.
+
+Acquiring spUSDC
+To acquire spUSDC you can deposit USDC and other supported stablecoins into the Spark USDC Vault using the Spark App. See the Earning Savings for a guide on how to deposit.
+
+Supported Networks and Token Addresses
+Network	Token	Address
+Ethereum	spUSDC	0x28B3a8fb53B741A8Fd78c0fb9A6B2393d896a43d
+Integrating Savings Vaults
+For technical documentation on the spUSDC implementation and how to integrate please refer to the Spark Vaults V2 Developer Documentation.
+
+Spark Savings Vaults V2
+Overview
+Spark Vaults V2 is an ERC-4626 compliant yield-bearing vault that implements a continuous rate accumulation mechanism. Users can deposit assets and earn yields through the Vault Savings Rate (VSR), with all interest automatically compounded into their share value.
+
+The vault leverages the Spark Liquidity Layer through a permissioned TAKER_ROLE that can pull liquidity from the vault and deploy it into yield-bearing strategies, then transfer the assets back to maintain liquidity for withdrawals. The value owed to the vault at any time is calculated as assetsOutstanding() = totalAssets() - asset.balanceOf(address(this)).
+
+Spark Vaults V2 is a fork of sUSDS, enhanced with role-based access control, liquidity deployment capabilities, and improved rate management.
+
+Spark Vaults V2 is managed by Spark Governance. The vault deploys assets through the Spark Liquidity Layer to optimize yield.
+
+Supported Networks and Token Addresses
+Network	Vault	Token	Address
+Ethereum	Spark USDC	spUSDC	0x28B3a8fb53B741A8Fd78c0fb9A6B2393d896a43d
+Ethereum	Spark USDT	spUSDT	0xe2e7a17dFf93280dec073C995595155283e3C372
+Ethereum	Spark ETH	spETH	0xfE6eb3b609a7C8352A241f7F3A21CEA4e9209B8f
+Contract Details
+Contract Name: SparkVault.sol
+Contract Source: Spark Vaults V2 code repository
+Constants
+MAX_VSR: Maximum allowed Vault Savings Rate (corresponds to 100% APY): 1.000000021979553151239153027e27
+RAY: Precision constant: 1e27
+SETTER_ROLE: Role identifier for addresses that can set the VSR
+TAKER_ROLE: Role identifier for addresses that can take liquidity (Spark Liquidity Layer)
+PERMIT_TYPEHASH: EIP-712 permit typehash
+version: Contract version: "1"
+Variables
+asset: Address of the underlying asset (USDC, USDT, or WETH)
+decimals: Token decimals (inherited from underlying asset)
+name: Token name (e.g., "Spark USDC")
+symbol: Token symbol (e.g., "spUSDC")
+rho: Timestamp of last rate update (unix epoch time)
+chi: Rate accumulator that tracks cumulative growth [ray]
+vsr: Vault Savings Rate [ray]
+minVsr: Minimum allowed Vault Savings Rate [ray]
+maxVsr: Maximum allowed Vault Savings Rate [ray]
+depositCap: Maximum total assets that can be deposited
+totalSupply: Total supply of vault shares
+balanceOf: Mapping of address to share balance
+nonces: Mapping of address to permit nonce for EIP-712
+allowance: Nested mapping of owner → spender → allowance amount
+ERC20 Token Functionality
+The contract implements the standard ERC-20 interface:
+
+transfer: Transfers shares from the caller to a recipient. Returns boolean success.
+transferFrom: Transfers shares from one address to another (requires allowance). Returns boolean success.
+approve: Sets allowance for a spender. Returns boolean success.
+ERC4626 Token Functionality
+Note: In the following, the term asset refers to the underlying token (USDC/USDT/WETH) and the term share refers to the vault token (spUSDC/spUSDT/spETH).
+
+The contract implements the ERC-4626 interface:
+
+asset: Returns the address of the underlying asset
+totalAssets: Returns total value of assets based on current conversion rate (may exceed actual balance)
+convertToShares: Converts asset amount to shares based on current chi
+convertToAssets: Converts shares to asset amount based on current chi
+maxDeposit: Returns maximum assets that can be deposited (based on deposit cap)
+previewDeposit: Calculates shares that would be minted for given asset amount
+deposit: Deposits assets and mints shares to receiver
+maxMint: Returns maximum shares that can be minted
+previewMint: Calculates assets required to mint given shares
+mint: Mints specified shares by pulling required assets
+maxWithdraw: Returns maximum assets an owner can withdraw (limited by available liquidity)
+previewWithdraw: Calculates shares that would be burned for given asset withdrawal
+withdraw: Withdraws assets by burning shares
+maxRedeem: Returns maximum shares an owner can redeem (limited by available liquidity)
+previewRedeem: Calculates assets that would be returned for given shares
+redeem: Redeems shares for assets
+permit: Allows gasless approvals using EIP-712 signatures
+Role-Based Access Control
+Spark Vaults V2 implements OpenZeppelin's AccessControl for granular permissions:
+
+DEFAULT_ADMIN_ROLE
+Can perform the following operations:
+
+Upgrade the contract implementation
+Set VSR bounds (setVsrBounds)
+Set deposit cap (setDepositCap)
+Grant and revoke other roles
+SETTER_ROLE
+Can perform the following operations:
+
+Set the Vault Savings Rate (setVsr) within the bounds set by admin
+TAKER_ROLE
+Can perform the following operations:
+
+Take liquidity from the vault (take) to deploy into yield strategies
+This role is typically assigned to the Spark Liquidity Layer
+Important: Addresses with TAKER_ROLE cannot deposit into or receive deposits from the vault to prevent conflicts of interest.
+
+Rate Accumulation Mechanism
+Spark Vaults V2 uses a continuous rate accumulation system:
+
+Core Formula
+The rate accumulator (chi) is updated using the formula:
+
+
+chi_new = chi_old * (vsr)^(time_delta) / RAY
+Total Assets Calculation
+Total assets are calculated as:
+
+
+totalAssets = totalSupply * nowChi() / RAY
+Where nowChi() returns the current chi value accounting for time elapsed since last update.
+
+Note: totalAssets() represents the theoretical value of all shares and has no relation to the actual balance of the contract. Actual available liquidity is asset.balanceOf(address(this)).
+
+Rate Update Process
+The drip() function updates the rate accumulator:
+
+Calculates time elapsed since last update (rho)
+Applies compound interest using vsr over elapsed time
+Updates chi and rho to current values
+Emits Drip event with new chi and accrued interest
+Key Functions
+drip(): Updates rate accumulator to current time
+nowChi(): Returns current chi value without updating state
+assetsOf(address): Returns asset value of an address's shares at current time
+assetsOutstanding(): Returns assets deployed by TAKER_ROLE (totalAssets - balance)
+Referral Code
+The deposit and mint functions accept an optional uint16 referral parameter that integrators can use to track deposits. Such deposits emit a Referral(uint16 indexed referral, address indexed owner, uint256 assets, uint256 shares) event.
+
+This referral system is used for tracking integration sources and can be leveraged for reward programs.
+
+Upgradeability
+The contract uses the UUPS (Universal Upgradeable Proxy Standard) pattern for upgradeability:
+
+Follows ERC-1822 UUPS standard
+Uses ERC-1967 proxy storage slots
+Only DEFAULT_ADMIN_ROLE can authorize upgrades via _authorizeUpgrade
+Implementation address can be queried via getImplementation()
+Admin Functions
+setDepositCap
+
+function setDepositCap(uint256 newCap) external onlyRole(DEFAULT_ADMIN_ROLE)
+Sets the maximum total assets that can be deposited into the vault.
+
+setVsrBounds
+
+function setVsrBounds(uint256 minVsr_, uint256 maxVsr_) external onlyRole(DEFAULT_ADMIN_ROLE)
+Sets the minimum and maximum allowed Vault Savings Rate. Ensures:
+
+minVsr >= RAY (at least 0% APY)
+maxVsr <= MAX_VSR (at most 100% APY)
+minVsr <= maxVsr
+setVsr
+
+function setVsr(uint256 newVsr) external onlyRole(SETTER_ROLE)
+Sets the Vault Savings Rate within the bounds. Automatically calls drip() before updating.
+
+take
+
+function take(uint256 value) external onlyRole(TAKER_ROLE)
+Allows TAKER_ROLE to withdraw assets for deployment into yield strategies. Emits Take event.
+
+Events Emitted
+Approval(address indexed owner, address indexed spender, uint256 value): Emitted when allowance is set
+Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares): Emitted on deposit
+Transfer(address indexed from, address indexed to, uint256 value): Emitted on share transfers
+Withdraw(address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 shares): Emitted on withdrawal
+Referral(uint16 indexed referral, address indexed owner, uint256 assets, uint256 shares): Emitted on deposits with referral code
+Drip(uint256 chi, uint256 diff): Emitted when rate accumulator is updated
+DepositCapSet(uint256 oldCap, uint256 newCap): Emitted when deposit cap changes
+VsrBoundsSet(uint256 oldMin, uint256 oldMax, uint256 newMin, uint256 newMax): Emitted when VSR bounds change
+VsrSet(address indexed setter, uint256 oldVsr, uint256 newVsr): Emitted when VSR changes
+Take(address indexed taker, uint256 value): Emitted when liquidity is taken
+Key Mechanisms & Concepts
+Continuous Compounding
+Unlike traditional vaults that update sporadically, Spark Vaults V2 compounds continuously per-second based on the VSR. The chi accumulator tracks cumulative growth, making share values increase smoothly over time.
+
+Liquidity Deployment
+The TAKER_ROLE (Spark Liquidity Layer) can remove liquidity to deploy into yield strategies. The vault tracks this as:
+
+
+assetsOutstanding = totalAssets() - asset.balanceOf(address(this))
+This allows the vault to earn yields beyond just holding assets while maintaining ERC-4626 compliance.
+
+Share Value Calculation
+Unlike rebasing tokens, vault shares remain constant in quantity but increase in value. To get current asset value:
+
+
+uint256 assetValue = vault.convertToAssets(shareBalance);
+// or
+uint256 assetValue = vault.assetsOf(userAddress);
+Gotchas / Integration Concerns
+No Transfer Event on Mint/Burn
+Similar to standard ERC-4626 vaults, the contract emits Deposit and Withdraw events which are more verbose than ERC-20 Transfer events. Integrations should monitor both event types.
+
+totalAssets vs Actual Balance
+totalAssets() returns the theoretical value of all shares based on the rate accumulator, which can exceed the actual token balance when liquidity is deployed. For actual available liquidity, use:
+
+
+uint256 availableLiquidity = IERC20(vault.asset()).balanceOf(address(vault));
+maxWithdraw and maxRedeem Limitations
+These functions return amounts limited by available liquidity, not total user holdings. A user may own more shares than can be immediately redeemed if liquidity has been deployed.
+
+Deposit Cap
+The vault enforces a depositCap on total assets. Check maxDeposit() before attempting large deposits.
+
+TAKER_ROLE Restrictions
+Addresses with TAKER_ROLE cannot deposit or receive deposits. This prevents potential conflicts where the liquidity deployer could also be a user.
+
+Rate Updates
+The VSR can be updated by SETTER_ROLE at any time within the bounds set by admin. Share values will adjust accordingly on the next rate accumulation.
+
+Additional Resources
+Spark Vaults V2 GitHub Repository
+EIP-4626: Tokenized Vault Standard
+ERC-4626 Documentation
+EIP-712: Typed Structured Data Hashing and Signing
+ERC-1967: Proxy Storage Slots
+UUPS Upgradeable Proxies

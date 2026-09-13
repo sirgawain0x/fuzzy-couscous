@@ -1,0 +1,984 @@
+---
+alwaysApply: true
+---
+Access control
+Define access controllers for your tables with the SDK.
+
+The Tableland SDK works with the standard access control paradigms: smart contract controllers, or GRANT/REVOKE statements. This page will walk through simple examples for how to configure access rules for your tables.
+
+Basic access control
+With GRANT and REVOKE statements, you can prepare a statement and define what a specific address can do. For example, if you wanted to add another "admin" to the table with full access permissions on writing data, you could execute the following:
+
+import { Database } from "@tableland/sdk";
+
+// Assuming you've instantiated a `signer`
+const db = new Database({ signer });
+const tableName = "my_table_31337_2"; // Your table name
+
+const { meta } = await db
+  .prepare(
+    `GRANT INSERT, UPDATE, DELETE ON ${tableName} TO '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC'`
+  )
+  .run();
+await meta.txn?.wait();
+
+
+Thus, if the account 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC tries to write to the table, they'll have full permissions.
+
+Advanced control with controllers
+There is no native support in the SDK for deploying controllers, which are smart contracts that define an access control policy, which are more dynamic than the GRANT/REVOKE feature. But, once a controller contract is deployed, you can the use the SDK's Registry API to set the controller.
+
+Let's say you've deployed a contract that has "allow all" permissions at address 0x83a4bE0B792996f3b607f28cFD98f4E82AFcDD20 (note: this is a real contract on Sepolia). Then, you can use the setController method to, basically, state: this address is a controller contract that should dictate access controls for my table. Here's what it would look like:
+
+import { Registry } from "@tableland/sdk";
+
+// Assuming you've instantiated a `signer`
+const registry = new Registry({ signer });
+const tableName = "my_table_11155111_2"; // Your table name
+const controller = "0x83a4bE0B792996f3b607f28cFD98f4E82AFcDD20";
+
+const tx = await registry.setController({
+  tableName,
+  controller,
+});
+await tx.wait();
+
+tip
+Remix makes it really easy to deploy one-off smart contracts. You can create one of the example controllers and sign/send the transaction using your browser wallet, making it straightforward to add more flexible access controls without much Solidity experience.
+
+Polling controller & aborting queries
+Define custom logic to control Database methods & transaction polling behavior.
+
+All asynchronous Database method calls take an optional PollingController object, which may be used to abort an inflight query. Note that this will only abort queries (including wait status), not the actual mutation transaction itself.
+
+Overview
+A PollingController is a wrapper around an AbortSignal with some extra behavior. The object includes:
+
+signal: An AbortSignal object.
+abort: A function that will abort the signal.
+interval: The polling interval in milliseconds.
+cancel: A function that will cancel the polling interval.
+timeout: The polling timeout in milliseconds.
+We'll walk through how to use this with the Database methods, and the polling for transactions docs show how to use it with the Validator API.
+
+Usage
+The @tableland/sdk package includes a helpers export, which includes a createPollingController function that can be used to create a PollingController object. By default, this is already used in all statement methods like all, run, first, and raw, and it is also used in the Database methods for batch and exec as well. But, if you'd like to use this functionality to alter the default behavior, you can create one with createPollingController and pass your own values.
+
+The default values are 60 seconds for the timeout and 1500 milliseconds for the interval, so you'd replace these with your own.
+
+Statement methods
+To demonstrate how it works, the example below shows how a controller is created and then passed to the all() method. The setTimeout is used to abort the query after 10 milliseconds, which will cause the all() method to throw an error due to an early abort. These methods can take an optional opts object that includes the controller.
+
+import { helpers } from "@tableland/sdk";
+
+const controller = helpers.createPollingController(60_000, 1500); // polling timeout and interval
+
+const stmt = db.prepare("SELECT * FROM my_table");
+
+setTimeout(() => controller.abort(), 10);
+const young = await stmt.all({ controller });
+/*
+Error: The operation was aborted.
+*/
+
+
+This pattern works for all of the statement methods: all, run, first, and raw. Note that first can also take a parameter for the column name, so its usage might look like stmt.first("id", { controller }).
+
+Database methods
+As noted, the statement methods use a top-level options parameter opts, which is where the controller is passed within the object. However, the Database methods for batch and exec do not take the options object opts, and instead, they simply take the controller directly as an optional parameter.
+
+import { helpers } from "@tableland/sdk";
+
+const controller = helpers.createPollingController(60_000, 1500); // polling timeout and interval
+
+// Pass to batch
+await db.batch(
+  [
+    db.prepare("insert into my_table values (1)"),
+    db.prepare("insert into my_table values (2)"),
+  ],
+  controller
+);
+
+// Pass to exec
+await db.exec(
+  "insert into test my_table (1); insert into my_table values (2)",
+  controller
+);
+
+Polling for table changes
+Interact directly with the Validator API to poll for table changes.
+
+You can watch for table changes by setting up polling on a validator node. The general flow requires setting up a Database and Validator connection, defining an instance of a PollingController (via createPollingController), and using pollForReceiptByTransactionHash to check for changes based on the transaction hash generated by an onchain action. Since the Database methods already implement polling, it's most useful when you:
+
+Are creating or mutating tables from smart contracts, which have no awareness of what the validator materializes.
+Need to trigger application logic based on table changes that aren't in your control flow—likely, the smart contract use case, again.
+Polling for table changes
+By default, if you create table or write data with the SDK, it'll already be using this functionality under the hood. Every chain has unique values configured for the interval and timeout params, which are used to determine how often to poll and how long to wait before timing out. See the polling controller docs for more information on createPollingController works.
+
+You can override these values, if desired. Note the Validator does not need a signer to be instantiated, but it does need a baseUrl to connect to a validator node—the getBaseUrl helper function can be used to determine the correct one for your chain.
+
+import { Database, Validator, helpers } from "@tableland/sdk";
+import { Wallet, getDefaultProvider } from "ethers";
+
+// This step is optional since we're creating a table for demonstration purposes below
+// We'll set up the signer for Hardhat / Local Tableland
+const privateKey =
+  "59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
+const wallet = new Wallet(privateKey);
+const provider = getDefaultProvider("http://127.0.0.1:8545"); // Replace with your RPC URL
+const signer = wallet.connect(provider);
+
+// We'll set up a `Database` since we're creating a table with the SDK for demonstration purposes
+// The `chainID` (or ethersjs chain name) is used to determine the validator node URL
+const { chainId } = await provider.getNetwork();
+const db = new Database({
+  signer,
+  baseUrl: helpers.getBaseUrl(chainId),
+});
+
+// Connect to a Tableland validator node—it only uses the `baseUrl`, which is also part of the `Database` config
+const validator = new Validator(db.config);
+// Create a controller to help abort the pending tx request, once it is fulfilled
+const controller = helpers.createPollingController(60_000, 1500); // 60s interval, 1.5s timeout
+// Send a mutating query to the network—then get the tx hash
+const res = await db.prepare("create table my_table (id int);").all();
+const transactionHash = res.meta.txn?.transactionHash ?? "";
+// Poll the validator on a specific chain at a specific tx hash
+// Perform logic (we're just logging here), then, abort the controller
+validator
+  .pollForReceiptByTransactionHash(
+    {
+      chainId,
+      transactionHash,
+    },
+    controller
+  )
+  .then((_) => {
+    console.log("Transaction was processed by the validator");
+  })
+  .catch((_) => {
+    console.log("Transaction was not processed by the validator");
+  });
+return () => {
+  controller.abort();
+};
+
+
+Again, this example grabbed a transaction hash from the Database's response, but it could be any transaction that is created on the Tableland network. For instance, if you create a table or write to it directly from a smart contract, you grab that transaction hash and pass it to the pollForReceiptByTransactionHash method to watch for changes.
+
+Table subscriptions
+Register a listener to receive changes to a table.
+
+There are times when you'd like to listen to table interactions, whether that's table writes, table ownership transfers, or controller ACL alterations. Subscriptions allow developers to stay up-to-date on any data changes in order to perform subsequent logic or processing from the events.
+
+Overview
+In order to use subscriptions, you must first create a Database instance (a signer param is required) and then instantiate a Registry instance. From there, you can start listening to the Tableland registry contract for events that are associated with a given table using a TableEventBus, located in the SDK's helpers module.
+
+The TableEventBus provides an addListener method to start listening for a single table's events. A listener can only subscribe to one event type at a time for a table, but you can set up as many listeners as needed, based on your development environment. This includes three possibilities, passed to the on method of the listener:
+
+change: Any table data changes upon writing to the table.
+set-controller: Change of the table's access controller address.
+transfer: Change of ownership for a table.
+There also exists an addTableIterator wrapper that returns an async iterable (e.g., used with a for await ... of pattern). Once a listener is set up, the removeListener or removeAllListeners methods allow you to stop listening for events.
+
+Setup
+To get started, you'll need to import the Database and TableEventBus, instantiate them, and then add a listener to the event bus:
+
+import { Database } from "@tableland/sdk";
+import { TableEventBus } from "@tableland/sdk/helpers";
+
+// Configure a `signer` to then pass to the `Database` instance
+
+const db = new Database({ signer });
+const eventBus = new TableEventBus(db.config);
+const listener = await eventBus.addListener(`{prefix}_{chainId}_{tableId}`); // Replace with your table name
+
+
+Table changes
+Table writes can be subscribed to using the change event type. Once the listener is set up, you can perform logic based on the event data and later remove the listener when you're done.
+
+listener.on("change", (event) => {
+  // Perform logic here
+});
+
+The data returned from the event is an object with the table ID, transaction hash, block number, and chain ID—such as the following:
+
+{
+  "tableId": "2",
+  "transactionHash": "0x8e1e840223d48834fac452660131d5fc3a31961d6d58828d1bb0a18b4f71a012",
+  "blockNumber": 15,
+  "chainId": 31337
+}
+
+Controller changes
+The set-controller event type allows you to subscribe to change to the table's access controller. The data returned from the event is what's included in a standard onchain event log, such as the block number/hash, transaction index/arguments, event name/signature, etc.
+
+listener.on("set-controller", function (event) {
+  // Perform logic here
+});
+
+Table transfers
+With an event type of transfer, you can listen to table ownership changes.
+
+listener.on("transfer", function (event) {
+  // Perform logic here
+});
+
+The data returned from the event also includes standard onchain event log information.
+
+Removing listeners
+There are two ways to remove listeners:
+
+removeListener: Stop listening for events for a specific chainId and tableName
+removeAllListeners: Remove all listeners altogether.
+The following shows how to remove a single listener:
+
+listener.on("change", (event) => {
+  // Perform logic here
+  eventBus.removeListener({ chainId: 31337, tableId: 2 }); // Remove the listener for a specific case
+});
+
+
+To remove all listeners, it might look like the following:
+
+listener.on("change", (event) => {
+  // Perform logic here
+  eventBus.removeAllListeners(); // Remove all listeners upon completion
+});
+
+Note that removing the listener works for all event types, not just change, as demonstrated above.
+
+JETI extension
+The JETI package lets you transform data on the client-side for SDK queries.
+
+Overview
+The JETI (JavaScript Extension for Tableland Integrations) package is a library designed to be used with the @tableland/sdk. It provides a few out-of-the-box extensions to easily transform data you are submitting to and "untransform" data queried from Tableland, and you can also create your own using the createProcessor function.
+
+Usage
+There are a few ways to use JETI with the following exports:
+
+pinToLocal or pinToProvider: Use string templating to define values in a SQL string that should be replaced with IPFS CIDs, pinning them in the process. That is, a CID will be inserted into the table and stored on IPFS, and you can call the resolve function to retrieve the underlying data from IPFS. See the pinning docs for more information.
+truncate: In Tableland, each cell has a max size of 1024 bytes. Thus, you might want to use IPFS to store larger strings or files. Alternatively, if you want to simply store a string that can be lossy, the truncate function will limit the string to 1024 bytes and write the raw value to the table.
+symmetricEncrypt: This is more of an experimental example of how you can use JETI to encrypt data before it is sent to Tableland. It uses AES encryption with random secrets and salts, but it's safer to use more secure implementations in a production environment. See the encryption docs for more information.
+createProcessor: Alteratively, you can create your own plugin using the createProcessor function. This lets you define other methods of transformation outside of those out-of-the-box extensions described above.
+Insert & process IPFS data
+Use IPFS to store large strings and files while inserting CIDs into your table.
+
+Truncating values
+Adhere to the 1024 byte limit per cell by truncating values.
+
+Encrypt & decrypt data
+Use the experimental encryption plugin to encrypt table data or decrypt it after querying.
+
+Custom plugin
+Define your own Tableland SDK extension for client-side logic.
+
+Installation & setup
+Throughout the examples in the plugins section, we'll assume you've done the following to create a table. You can install the @tableland/jeti package:
+
+npm
+Yarn
+pnpm
+pnpm add @tableland/jeti @tableland/sdk
+
+Then, import the Database class from @tableland/sdk as well as some ethers utilities (used in the examples below):
+
+import { Database } from "@tableland/sdk";
+import { Wallet, getDefaultProvider } from "ethers";
+
+We'll show how to import/use the various methods from @tableland/jeti later on.
+
+Local development
+As a best practice, use Local Tableland when you're first getting started. It spins up local Hardhat and Tableland nodes on chain ID 31337 and RPC URL http://127.0.0.1—a sandboxed environment for you to test your code.
+
+npm
+Yarn
+pnpm
+pnpm add -g @tableland/local
+
+Then, start the processes so that you can interact with the local network:
+
+npx local-tableland
+
+Set up the database and table
+Let's create a new instance of the Database class with the Tableland JavaScript SDK and create a table. First, set up your signer—this example uses a Hardhat private key from Local Tableland, which we'll assume is running in the background to let you interact with the sandboxed network.
+
+const privateKey =
+  "59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
+const wallet = new Wallet(privateKey);
+// To avoid connecting to the browser wallet (locally, port 8545).
+// For example: "https://polygon-amoy.g.alchemy.com/v2/YOUR_ALCHEMY_KEY"
+const provider = getDefaultProvider("http://127.0.0.1:8545");
+const signer = wallet.connect(provider);
+
+Then, create a simple table with an id and val column:
+
+const db = new Database({ signer });
+const { meta: create } = await db
+  .prepare(`CREATE TABLE my_table (id integer primary key, val text);`)
+  .run();
+await create.txn?.wait();
+const [tableName] = create.txn?.names ?? [];
+console.log(tableName); // my_table_31337_2
+
+In the subsequent sections, we'll use this my_table_31337_2 (or whatever the value is for you) as the table name.
+
+Error handling
+Review SDK error handling setup and what types of messages will bubble up.
+
+The stmt. and db. methods will throw an Error object whenever an error occurs. Database Errors use cause property for details.
+
+new Error("ERROR", { cause: new Error("Error detail") });
+
+To capture exceptions, you can use a try...catch statement. For example, try using an invalid keyword INSERTZ:
+
+try {
+  await db.exec("INSERTZ INTO my_table (name, employees) VALUES ()");
+} catch (e: any) {
+  console.log({
+    message: e.message,
+    cause: e.cause.message,
+  });
+}
+
+The try...catch statement will attempt to execute the try block's code but catch the error and log the following:
+
+{
+  "message": "EXEC_ERROR",
+  "cause": "Error in line 1: INSERTZ INTO my_table (name, employees) VALUES (): sql error: near \\"INSERTZ\\": syntax error in INSERTZ INTO my_table (name, employees) VALUES () at offset 0"
+}
+
+SQL parser
+Parse and normalize SQL expressions to ensure Tableland compatibility.
+
+When you write SQL statements, they must adhere to the Tableland SQL grammar, which has some imposed constraints relative to typical SQL language. The SQL parser ensures that your SQL statements are valid and normalizes them to ensure compatibility with Tableland.
+
+Installation
+Start by installing the SQL parser package in your project:
+
+npm
+Yarn
+pnpm
+pnpm add @tableland/sqlparser
+
+If you're using the Tableland SDK, it uses the SQL parser under the hood to normalize and pull out information from SQL statements. Installing this package is not required but useful if you want to normalize statements outside of the SDK. The parser supports both ESM and CommonJS.
+
+Setup
+In your source file, import the init function from the SQL parser, and then call the function to initialize the parser. This add the sqlparser object to the global namespace, globalThis.
+
+import { init } from "@tableland/sqlparser";
+
+await init();
+
+Because the global namespace is used, you can call the sqlparser object from anywhere in your code, which should always be preceded with await since it's an asynchronous function. If you run into issues during this first step, it might be an issue with loading WASM, which powers the parser. In this instance, you can import __wasm and use it to conditionally check if WASM is loaded, then calling init:
+
+import { init, __wasm } from "@tableland/sqlparser";
+
+if (__wasm == null) {
+  await init();
+}
+
+Usage
+The SQL parser exposes three functions: normalize, validateTableName, and getUniqueTableNames.
+
+normalize
+You can use the normalize function to normalize SQL statements. It takes a single argument—the SQL statement to normalize—and returns an object with the following properties:
+
+statements: An array of normalized SQL statements (e.g., removed whitespace).
+type: The type of SQL statement; one of: create, read, write, or acl (for GRANT/REVOKE statements).
+tables: An array of table names referenced in the SQL statement.
+const { statements, type, tables } = await sqlparser.normalize(
+  "select   * FrOM   my_table  WHere    something = 'nothing';"
+);
+
+The values returned will be:
+
+statements: ["select * from my_table where something='nothing'"]
+type: "read"
+tables: ["my_table"]
+If you pass multiple statements that touch different tables, it'll include those as well:
+
+const { statements, type, tables } = await sqlparser.normalize(
+  "insert into my_table values (1); insert into other_table values ('test');"
+);
+
+The values returned will be:
+
+statements: ["insert into my_table values(1)", "insert into other_table values('test')"]
+type: "write"
+tables: ["my_table", "other_table"]
+If you pass an invalid statement, it will provide context as to what's wrong with it.
+
+try {
+  const invalid = await sqlparser.normalize(
+    "insert blah into my_table values (1);"
+  );
+} catch (e) {
+  // error parsing statement: syntax error at position 11 near 'blah'
+  console.log(e.message);
+}
+
+validateTableName
+The validateTableName function takes a single argument: the table name to validate. In the examples above, you'll notice the table names we used were my_table. In reality, all table names look like {prefix}_{chainId}_{tableId} since this is their globally unique identifier. This function allows you to check if the table name used in the statement adheres to the generally accepted format, providing you with the table's prefix, chain ID, table ID, and full name.
+
+const info = await sqlparser.validateTableName("table_1_1");
+
+This will provide you with the following information:
+
+{
+  "prefix": "table",
+  "chainId": 1,
+  "tableId": 1,
+  "name": "table_1_1"
+}
+
+It's important to note this doesn't enforce chain ID compliance. For example, the following statement uses chain ID 1, which is in fact a valid network (Ethereum mainnet), but any number will pass. It simply checks the format is in the form of {prefix}_{chainId}_{tableId}.
+
+If you were to pass an invalid name, it'll throw:
+
+try {
+  const info = await sqlparser.validateTableName("$123table_1_1");
+} catch (e) {
+  // error validating name: table name has wrong format: $123table_1_1
+  console.log(e.message);
+}
+
+getUniqueTableNames
+If you have a statement with multiple tables, you can use the getUniqueTableNames function to get an array of unique table names. It takes a single argument: the SQL statement to parse. It returns an array of table names.
+
+const tableNames = await sqlparser.getUniqueTableNames(
+  "select t1.id, t3.* from t1, t2 join t3 join (select * from t4);"
+);
+
+Providing you with: ["t1", "t2", "t3", "t4"].
+
+If you pass an invalid SQl statement, it'll throw:
+
+try {
+  const invalid = await sqlparser.getUniqueTableNames(
+    "insert blah_1_1 into values (1);"
+  );
+} catch (e: any) {
+  // error parsing statement: syntax error at position 15 near 'blah_1_1'
+  console.log(e.message);
+}
+
+TypeScript
+If you're using TypeScript, the types for these are also exported. Both NormalizedStatement and StatementType are part of the response from normalize, and validateTableName uses ValidatedTable. For getUniqueTableNames, it simply returns strings.
+
+Dealing with build issues
+Certain build systems don't support WASM out of the box, so you might need to adjust your configuration file. For example, with Vite, you'd adjust the config with the following exclusion:
+
+vite.config.ts
+// ...
+optimizeDeps: {
+  exclude: ["@tableland/sqlparser"];
+}
+// ...
+
+ORM support
+Simplify working with data and writing SQL statements using an Object-Relational Mapping (ORM) tool.
+
+Since Tableland supports Cloudflare’s D1Database interface, this means there is also support for an ORM. Some examples include d1-orm, @databases/sql, and drizzle-orm.
+
+Prerequisites
+Before getting started, be sure the @tableland/sdk package is installed:
+
+npm install @tableland/sdk
+
+It's also a best practice to use table aliases to ensure compatability due to Tableland's unique table format ({prefix}_{chainId}_{tableId}). Aliases make it easy to reference tables by a human-readable name, while Tableland handles the underlying unique table identifier.
+
+We'll demonstrate this with the jsonFileAliases helper, designed for Node.js environments.
+
+npm install @tableland/node-helpers
+
+Make sure these are both imported into your project before moving onto the ORM sections:
+
+import { Database } from "@tableland/sdk";
+import { jsonFileAliases } from "@tableland/node-helpers";
+
+And lastly, we'll instantiate our Database before passing it to the ORM, which will operate on the instance. See the signers documentation for more information on how to set that up.
+
+const signer = /* set up your ethers signer */
+const db = new Database({ signer, aliases: jsonFileAliases("./tableland.aliases.json") });
+
+d1-orm
+Installation & setup
+Install the dependency:
+
+npm install d1-orm
+
+Usage
+Here’s a quick example of creating, updating, and querying a table via a Model object:
+
+import {
+  D1Orm,
+  DataTypes,
+  Model,
+  GenerateQuery,
+  QueryType,
+  type Infer,
+} from "d1-orm";
+
+// The `db` instance is from the previous section
+const orm = new D1Orm(db);
+
+// Note: the `users` table name is possible due to the `aliases`
+// Otherwise, it'd have to be in the `{prefix}_{chainId}_{tableId}` format
+const users = new Model(
+  {
+    D1Orm: orm,
+    tableName: "users",
+    primaryKeys: "id",
+    uniqueKeys: [["email"]],
+  },
+  {
+    id: {
+      type: DataTypes.INTEGER,
+      notNull: true,
+    },
+    name: {
+      type: DataTypes.STRING,
+      notNull: true,
+    },
+    email: {
+      type: DataTypes.STRING,
+    },
+  }
+);
+type User = Infer<typeof users>;
+
+const { meta: create } = await users.CreateTable({
+  strategy: "default",
+});
+await create.txn?.wait();
+
+const { meta: write } = await users.InsertOne({
+  name: "Bobby Tables",
+  email: "bobby-tab@gmail.com",
+});
+await write.txn?.wait();
+
+const { results } = await users.All({
+  where: { name: "Bobby Tables" },
+  limit: 1,
+  offset: 0,
+  orderBy: ["id"],
+});
+
+@databases/sql
+Installation & setup
+Install the dependency:
+
+npm install @databases/sql
+
+Usage
+Additional integrations provide some client-side safety for injecting table names, query parameters, and more via prepared statement syntax. While you don’t need @databases/sql to leverage prepared statements with the Tableland SDK, it does provide some nice methods for working with raw SQL strings.
+
+import sql, { FormatConfig } from "@databases/sql";
+import { escapeSQLiteIdentifier } from "@databases/escape-identifier";
+import { Database } from "@tableland/sdk";
+
+// See https://www.atdatabases.org/docs/sqlite
+const sqliteFormat: FormatConfig = {
+  escapeIdentifier: (str) => escapeSQLiteIdentifier(str),
+  formatValue: (value) => ({ placeholder: "?", value }),
+};
+
+// First, we'll test out using sql identifiers to create a table
+const primaryKey = sql.ident("id");
+let query = sql`CREATE TABLE test_sql (${primaryKey} integer primary key, counter integer, info text);`;
+const { text, values } = query.format(sqliteFormat);
+const { meta: create } = await db.prepare(text).bind(values).run();
+const { name: tableName } = await create.txn?.wait();
+console.log(`Created table ${tableName}`);
+
+// Insert some data
+query = sql`INSERT INTO ${sql.ident(tableName)} (counter, ${sql.ident("info")})
+    VALUES (${one}, 'one'), (2, 'two'), (3, ${three}), (${four}, 'four');`;
+const { text, values } = query.format(sqliteFormat);
+const { meta: write } = await db.prepare(text).bind(values).run();
+await write.txn?.wait();
+
+// Read some data
+query = sql`SELECT * FROM ${sql.ident(
+  tableName
+)} WHERE counter >= ${boundValue};`;
+const { text, values } = query.format(sqliteFormat);
+const { results } = await db.prepare(text).bind(values).all();
+console.log(`Data from table: ${results}`);
+
+
+drizzle-orm
+Installation & setup
+Install the dependency:
+
+npm install drizzle-orm
+
+Usage
+import { type InferInsertModel, type InferSelectModel } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/d1";
+import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+
+// See https://orm.drizzle.team/docs/quick-sqlite/d1
+const user = sqliteTable("user", {
+  id: integer("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+});
+type User = InferSelectModel<typeof user>;
+type NewUser = InferInsertModel<typeof user>;
+
+// Set up the database connection
+const database = drizzle(db, { schema: { user } });
+
+// Create a table
+const { meta: create } = await db
+  .prepare(
+    "CREATE TABLE user (id integer primary key, name text not null, email text not null unique);"
+  )
+  .run();
+await create.txn?.wait();
+
+// Insert a row
+const values: NewUser = {
+  id: 1,
+  name: "John Doe",
+  email: "john-doe@gmail.com",
+};
+const { meta: write } = await database.insert(user).values(values).run();
+await write.txn?.wait();
+
+// Read from the table
+const results: User[] = await database.select().from(user);
+
+
+Drizzle migrations
+Note that table migrations with drizzle-kit won't work without some customizations due to some slight SQL incompatibilities. This can be resolved with a custom migrations script that you implement on your own. Namely, if you use the default migration functionality, it’ll use the INDEX keywords which is not supported in Tableland:
+
+CREATE TABLE `teams` (
+	`id` text PRIMARY KEY NOT NULL,
+	`name` text NOT NULL UNIQUE,
+	`slug` text NOT NULL UNIQUE,
+	`personal` integer NOT NULL
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `nameIdx` ON `teams` (`name`);--> statement-breakpoint
+CREATE UNIQUE INDEX `slugIdx` ON `teams` (`slug`);--> statement-breakpoint
+
+Instead, we need the migrations file to look like the following—the UNIQUE INDEX constraint is removed from the end of the file:
+
+CREATE TABLE `teams` (
+	`id` text PRIMARY KEY NOT NULL,
+	`name` text NOT NULL UNIQUE,
+	`slug` text NOT NULL UNIQUE,
+	`personal` integer NOT NULL
+);
+
+Installation
+First, install drizzle-kit:
+
+npm install drizzle-kit
+
+Setup
+In order to do this, we’ll need a custom script that handles this logic and removes the CREATE UNIQUE INDEX lines. Basically, within a migrations, you need to parse out the --> statement-breakpoint lines that have the pattern described above, store migrations in Tableland table, and then use this file as the migrations file. We'll store all of this in a folder called drizzle in the root of our project.
+
+Here’s an example of how to do this—notice the crypto package is also used to hash the file contents to ensure the file hasn’t been tampered with. We're also assuming an asynchronous aliases file is set up, as described in the aliases section.
+
+Once the following is set up, you can run npm run gen-migrate to generate the migrations file, and then npm run exec-migrate to execute the migrations. These would exist is your package.json scripts as:
+
+JavaScript
+TypeScript
+{
+  "scripts": {
+    "gen-migrate": "drizzle-kit generate:sqlite",
+    "exec-migrate": "node scripts/migrate.js"
+  }
+}
+
+Note the tsx command is used to run TypeScript files directly.
+
+Here is the core logic in a migrate.js file within a scripts folder. Running this script directly will execute a migration that will create a migrations table and then execute all migrations in the drizzle folder:
+
+JavaScript
+TypeScript
+scripts/migrate.js
+import { Database } from "@tableland/sdk";
+import { jsonFileAliases } from "@tableland/node-helpers";
+import { createHash } from "crypto";
+import { readFile, readdir, stat } from "fs/promises";
+import path from "path";
+
+const migrationsFolder = "drizzle";
+const aliases = jsonFileAliases("./tableland.aliases.json");
+const signer = /* set up your ethers signer */
+const db = new Database({ signer, aliases });
+
+async function migrate() {
+  // Set up a reference `a` to the aliases file
+  const a = await aliases.read();
+  // Create the migrations table if it doesn't exist
+  if (!a.migrations) {
+    const res = await db
+      .prepare(
+        "create table migrations (id integer primary key, file text not null unique, hash text not null);",
+      )
+      .all();
+    if (res.error) {
+      throw new Error(res.error);
+    }
+    console.log("Created migrations table.");
+  }
+  // Get the migrations `drizzle` folder and find all table migrations, which get stored in the table
+  const files = await readdir(migrationsFolder);
+  const migrations = await db
+    .prepare("select * from migrations order by id asc")
+    .all();
+  if (migrations.error) {
+    throw new Error(migrations.error);
+  }
+
+  // Loop through the migrations files and get relevant information
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    const s = await stat(path.join(migrationsFolder, file));
+    if (s.isDirectory()) {
+      continue;
+    }
+    const fileBytes = await readFile(path.join(migrationsFolder, file));
+    const hash = createHash("sha256").update(fileBytes).digest("hex");
+    if (i < migrations.results.length) {
+      const migration = migrations.results[i];
+      if (
+        migration.id === i &&
+        migration.file === file &&
+        migration.hash === hash
+      ) {
+        continue;
+      }
+      throw new Error("Migration files inconsistent with migrations table.");
+    }
+    // Split the file into statements, removing the `--> statement-breakpoint` lines,
+    // which resolves the `UNIQUE INDEX` issue
+    const statements = fileBytes.toString().split("--> statement-breakpoint");
+    if (statements.length === 0) {
+      continue;
+    }
+    // Execute the statements
+    const preparedStatements = statements.map((s) => db.prepare(s));
+    console.log(`Executing migration ${file}...`);
+    const res = await db.batch(preparedStatements);
+    const errors = res.filter((r) => r.error).map((r) => r.error);
+    if (errors.length > 0) {
+      throw new Error(errors.join("\n"));
+    }
+    console.log(`Success!`);
+    // Write these values to our migrations table
+    const { error } = await db
+      .prepare("insert into migrations (id, file, hash) values (?, ?, ?)")
+      .bind(i, file, hash)
+      .run();
+    if (error) {
+      throw new Error(error);
+    }
+  }
+  console.log("Migrations complete.");
+}
+
+migrate().catch(function (err) {
+  console.log("migrate failed:");
+  console.error(err);
+  process.exit();
+});
+
+migrate();
+
+Testing
+Learn how to create test scripts that use Local Tableland under the hood.
+
+It’s useful to leverage @tableland/local in test suites, such as with the [mocha](https://mochajs.org/) testing framework. It’s important to test if the table creation, writes, and reads are all behaving as expected.
+
+Installation & setup
+To accomplish this, first, install @tableland/local (and this assumes you already have the SDK installed):
+
+npm i -D @tableland/local
+
+The following details what you'll need to do from here:
+
+Import the named LocalTableland export from @tableland/local.
+Create an instance of LocalTableland—here’s it’s stored as an lt variable.
+Call the start() method to launch the Tableland network; this launches all of the required local nodes (hardhat + Tableland) to allow for tests to be written for tables.
+Call the stop() method to stop the network; this should only happen once the tests finish.
+A best practice is to only start a single network to run all of your tests against. In other words, do not create a LocalTableland instance for each test but only at the start. The following provides a basic skeleton of what this should look like with global setup fixtures:
+
+test/setup.js
+import { after, before } from "mocha";
+import { LocalTableland } from "@tableland/local";
+
+// Set `silent` or `verbose` with boolean values
+// You'll likely want to silence logging during tests
+const lt = new LocalTableland({ silent: true });
+
+before(async function () {
+  this.timeout(15000);
+  lt.start();
+  await lt.isReady();
+});
+
+after(async function () {
+  await lt.shutdown();
+});
+
+Within setup.js, the local Tableland network starts and stop with the global fixtures; these will run before and after the tests elsewhere are executed. For Tableland and crypto-specific tests, you’ll want to import the @tableland/sdk package and ethers.
+
+Next Steps
+test/index.test.js
+// Use the `assert` library for more testing features
+import { strictEqual, deepStrictEqual } from "assert";
+// Standard for `mocha` testing
+import { describe, test } from "mocha";
+// `getAccounts` is a useful utility method to get accounts on the local network
+import { getAccounts } from "@tableland/local";
+// Get the provide using the `ethers` lib utility method
+import { getDefaultProvider } from "ethers";
+// Lastly, import the `connect` method for connecting to local Tableland
+import { Database, Statement } from "@tableland/sdk";
+
+describe("statement", function () {
+  // Note that we're using the second account here
+  const [, wallet] = getAccounts();
+  const provider = getDefaultProvider("http://127.0.0.1:8545");
+  const signer = wallet.connect(provider);
+  const db = new Database({ signer });
+
+  test("when created via db.prepare()", async function () {
+    const sql = "CREATE TABLE test (counter integer);";
+    const stmt = db.prepare(sql);
+    strictEqual(stmt.toString(), sql);
+    deepStrictEqual(stmt, new Statement(db.config, sql));
+  });
+
+  test("when executing mutations works and adds rows", async function () {
+    const sql = "CREATE TABLE test (counter integer);";
+    const stmt = db.prepare(sql);
+    const sql = `INSERT INTO ${tableName} (counter) VALUES (5);
+    INSERT INTO ${tableName} (counter) VALUES (9);`;
+    const { meta } = await db.exec(sql);
+    assert(meta.duration != null);
+    strictEqual(meta.count, 2);
+    assert(meta.txn != null);
+
+    await meta.txn.wait();
+
+    const results = await db.prepare("SELECT * FROM " + tableName).all();
+    strictEqual(results.results.length, 2);
+  });
+});
+
+As you get started with testing, it may be helpful to check out the js-template repo, which comes packed with useful Tableland-specific features, including the example tests noted above.
+
+Chunking queries
+Break up large queries into smaller chunks to onchain gas limits.
+
+Overview
+Tableland create and write statements flow through a base chain. Because all chains have execution limits, there is a 35kb limit imposed on the size of a single statement. This means that if you try to execute a statement that is larger than 35kb, it will fail. We'll walk through how you can implement your own query chunking logic to get around this limit and submit multiple transactions to execute a set of statements.
+
+Setup
+Make sure you have the SDK installed:
+
+npm
+Yarn
+pnpm
+pnpm add @tableland/sdk
+
+We'll assume you already have a Database instantiated with a signer, but check out the getting started guide if you need help.
+
+Chunking queries
+With the batch method, you can execute multiple statements in a method call. Each individual statement must only touch a single table, but multiple tables can be mutated in the batch. The batch method takes an array of prepared statements but if the statement exceeds 35kb, the onchain execution will fail due to gas limits being exceeded. To get around this, we can chunk the statements into smaller batches and execute them in sequence.
+
+If you have a set of full statements, the process is a bit easier because you can just send the prepared statements one by one:
+
+const [batch] = await db.batch([
+  db.prepare(`INSERT INTO my_table (id, val) VALUES (1, 'test 1');`),
+  db.prepare(`INSERT INTO my_table (id, val) VALUES (2, 'test 2');`),
+]);
+
+However, if you're inserting into the same columns, this can be a bit inefficient and costly because the longer a string is, the more gas it will cost to execute. Instead, a more efficient route would be to form the SQL statement as INSERT INTO my_table(id, val)VALUES(1,'test 1'),(2,'test 2');. We'll walk through how to do this.
+
+Table & data creation
+First, we'll create a table and set up the rows that we want to chunk. The example below creates an array of arrays, where each inner array is a row to be inserted into the table: the row ID, and the row value. In total, 10k rows are created, and this will end up totalling to over 188kb of data—well over the 35kb limit!
+
+// Create a table with `id` and `val`
+const { meta: create } = await db
+  .prepare(`CREATE TABLE my_table (id integer primary key, val text);`)
+  .all();
+await create.txn?.wait();
+const [tableName] = create.txn?.names ?? [];
+
+// Crete an array like `[ [1, 'test 1'], [2, 'test 2'], ... ]`
+const data = Array.from({ length: 10000 }, (_, i) => [i, `'test ${i}'`]);
+
+Helper methods
+The first set of helpers will make it easy to do two things:
+
+Convert a row into a string that can be inserted into the table (e.g., (1, 'test 1')).
+Get the byte size of a string.
+JavaScript
+TypeScript
+const getNextValues = function (row: Array<string | number>): string {
+  return `(${row.join(",")}),`;
+};
+
+const getByteSize = function (str: string): number {
+  return new Blob([str]).size;
+};
+
+Chunking
+Here, will write the core logic for chunking. The getBatches function takes an array of rows and returns an array of strings such that each string is contains a set of values that can be executed in a single transaction. The MAX_STATEMENT_SIZE is set to 35kb, and the outer while loop will continue to execute until all rows have been processed.
+
+The inner while loop will continue to execute until the next row would exceed the 35kb limit. Once the limit is reached, the statement is pushed to the batches array, and the next statement processing is started. Once all rows have been processed, the batches array is returned after mapping it to an array of prepared statements.
+
+JavaScript
+TypeScript
+import { type Statement } from "@tableland/sdk";
+
+// Existing code...
+
+const getBatches = function (rows: Array<Array<string | number>>): Statement[] {
+  const MAX_STATEMENT_SIZE = 35000;
+  const batches = [];
+  while (rows.length > 0) {
+    // Example with INSERT INTO statement (minimal whitespace for cost efficiency)
+    let statement = `INSERT INTO ${tableName}(id,val)VALUES`;
+
+    // Make sure a row can be added without exceeding the 35kb limit
+    while (
+      rows.length > 0 &&
+      getByteSize(statement) + getByteSize(getNextValues(rows[0])) <
+        MAX_STATEMENT_SIZE
+    ) {
+      // Remove the row from the array and add it to the statement
+      const row = rows.shift();
+      if (!row) break;
+      statement += getNextValues(row);
+    }
+
+    // Remove the trailing comma and add a semicolon for the final statement
+    statement = statement.slice(0, -1) + ";";
+    batches.push(statement);
+  }
+
+  // Map to the format that the `batch` method expects
+  return batches.map((stmt) => db.prepare(stmt));
+};
+
+Execution
+Now that we have the helper methods and the chunking logic, we can execute the statements. We can take the data that we created above, pass it to the getBatches function to get an array of statements, and the
+
+const batches = getBatches(data);
+
+const [{ meta }] = await db.batch(batches);
+await meta.txn?.wait();
+
+The execution logs will show that multiple sets of statements were created and executed, allowing a large set of statements to be executed across many individual INSERT statements.

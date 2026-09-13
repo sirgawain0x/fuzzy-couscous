@@ -1,0 +1,24 @@
+Compiling 1 files with Solc 0.8.26
+Solc 0.8.26 finished in 683.50ms
+Compiler run successful!
+Traces:
+  [547284] → new DeployVault@0x9f7cF1d1F558E57ef88a59ac3D47214eF25B6A06
+    └─ ← [Return] 2623 bytes of code
+
+  [5644] DeployVault::run()
+    ├─ [0] VM::envUint("PRIVATE_KEY") [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::startBroadcast(<pk>)
+    │   └─ ← [Return]
+    ├─ [0] VM::addr(<pk>) [staticcall]
+    │   └─ ← [Return] 0x1Fde40a4046Eda0cA0539Dd6c77ABF8933B94260
+    ├─ [0] VM::envOr("GOVERNANCE_ADDRESS", 0x1Fde40a4046Eda0cA0539Dd6c77ABF8933B94260) [staticcall]
+    │   └─ ← [Return] <env var value>
+    ├─ [0] VM::addr(<pk>) [staticcall]
+    │   └─ ← [Return] 0x1Fde40a4046Eda0cA0539Dd6c77ABF8933B94260
+    ├─ [0] VM::envOr("MANAGEMENT_ADDRESS", 0x1Fde40a4046Eda0cA0539Dd6c77ABF8933B94260) [staticcall]
+    │   └─ ← [Return] <env var value>
+    └─ ← [Revert] Governance and management must be different addresses
+
+
+Error: script failed: Governance and management must be different addresses

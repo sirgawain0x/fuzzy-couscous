@@ -1,0 +1,39 @@
+Compiling 6 files with Solc 0.8.26
+Solc 0.8.26 finished in 2.05s
+Compiler run successful!
+Script ran successfully.
+
+== Logs ==
+  Aave V3 Strategy deployed at: 0x6263d3E82447eEcda3b57b9E0557357A2E768B14
+  Compound V3 Strategy deployed at: 0x0D7EA22BFFc06D3104a4e998088e8D4a92730d24
+  Curve Strategy deployed at: 0xa958440eF031F06Ef4248E40Fb90d47AB8ddc269
+  Spark Strategy deployed at: 0x12227e6018b00a654f962FaD1E8f83a34B2a0Fe5
+  
+=== Strategy Deployment Summary ===
+  Aave V3 Strategy: 0x6263d3E82447eEcda3b57b9E0557357A2E768B14
+  Compound V3 Strategy: 0x0D7EA22BFFc06D3104a4e998088e8D4a92730d24
+  Curve Strategy: 0xa958440eF031F06Ef4248E40Fb90d47AB8ddc269
+  Spark Strategy: 0x12227e6018b00a654f962FaD1E8f83a34B2a0Fe5
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 8453
+
+Estimated gas price: 0.000215514 gwei
+
+Estimated total gas used for script: 3810995
+
+Estimated amount required: 0.00000082132277643 ETH
+
+==========================
+
+Transactions saved to: /Users/gawainbracyii/Developer/bank/broadcast/DeployStrategies.s.sol/8453/run-latest.json
+
+Sensitive values saved to: /Users/gawainbracyii/Developer/bank/cache/DeployStrategies.s.sol/8453/run-latest.json
+
+Error: Failed to send transaction
+
+Context:
+- server returned an error response: error code -32000: gapped-nonce tx from delegated accounts

@@ -1,0 +1,1645 @@
+---
+alwaysApply: true
+---
+To deploy a new Aave Earn Vault, follow these steps:
+
+Vaults deployed through other methods will not be surfaced via Aave Labs' API or SDKs.
+
+1
+
+Identify the Reserve
+First, determine which reserve you want your vault to be based on.
+
+Let's say we choose the WETH supply reserve of an Ethereum market.
+
+Reserve
+const reserve: Reserve = {
+  __typename: "Reserve",
+  market: {
+    __typename: "MarketInfo",
+    address: "0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2",
+    chainId: 1,
+    // …
+  },
+  underlyingToken: {
+    __typename: "Currency",
+    symbol: "WETH",
+    name: "Wrapped Ether",
+    address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    // …
+  },
+  isFrozen: false,
+  isPaused: false,
+  // …
+};
+Ensure the reserve is not frozen or paused.
+
+2
+
+Define Configuration
+Next, define the configuration for deploying the vault.
+
+React
+TypeScript
+GraphQL
+The minimal configuration to deploy a vault is:
+
+Minimal Configuration
+{
+  "request": {
+    "market": "0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2",
+    "chainId": 1,
+    "underlyingToken": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    "deployer": "0x742d35cc6e5c4ce3b69a2a8c7c8e5f7e9a0b1234",
+    // "owner": "0x1234…", if different from deployer
+    "initialFee": "11", // 11% performance fee
+    "shareName": "Aave WETH Vault Shares",
+    "shareSymbol": "avWETH",
+    "initialLockDeposit": "1000" // 1000 WETH initial deposit,
+  }
+}
+Vaults deployed via Aave Labs' API or SDK must specify a performance fee of at least 10%, with 50% of that fee automatically allocated to Aave Labs.
+
+When a recipient is not specified, the fee revenue is distributed equally between the vault owner and Aave Labs.
+
+Let's explore a more advanced recipient configuration with an example. Suppose you want to deploy a vault where you keep 70% of the fee revenue and share the remaining 30% with your partner.
+
+Configuration with Fee Recipients
+{
+  "request": {
+    // …
+    "recipients": [
+      {
+        "address": "0x5678…",
+        "percent": "30"
+      },
+      {
+        "address": "0x9012…",
+        "percent": "70"
+      }
+    ]
+  }
+}
+If the vault generates 100 WETH in fee revenue, the distribution will be as follows:
+
+partner
+: 15 WETH
+
+owner
+: 35 WETH
+
+Aave Labs
+: 50 WETH
+
+Since Aave Labs retains 50% of the total fee revenue by default, the remaining 50% is divided between the owner and partner according to the specified percentages.
+
+3
+
+Deploy the Vault
+Finally, deploy the vault.
+
+React
+TypeScript
+GraphQL
+Use the 
+vaultDeploy
+ query to deploy a vault.
+
+Query
+query {
+  vaultDeploy(request: {
+    // …
+  }) {
+    __typename
+    ... on TransactionRequest {
+      to
+      from
+      data
+      value
+      chainId
+      operation
+    }
+    ... on ApprovalRequired {
+      reason
+      requiredAmount {
+        value
+        decimals
+      }
+      currentAllowance {
+        value
+        decimals
+      }
+      approval {
+        to
+        from
+        data
+        value
+        chainId
+        operation
+      }
+      originalTransaction {
+        to
+        from
+        data
+        value
+        chainId
+        operation
+      }
+    }
+    ... on InsufficientBalanceError {
+      required {
+        value
+        decimals
+      }
+      available {
+        value
+        decimals
+      }
+    }
+  }
+}
+Depending on the response, you can handle the response accordingly.
+
+Response Type
+Description
+TransactionRequest
+You can send it directly using the wallet associated with the 
+from
+ address.	
+ApprovalRequired
+Send the approval transaction first, then the original transaction.
+InsufficientBalanceError
+Inform the user that they don't have enough balance for the initial deposit in the vault.
+Below are examples illustrating the response for each response type.
+
+TransactionRequest
+ApprovalRequired
+InsufficientBalanceError
+{
+  "data": {
+    "vaultDeploy": {
+      "__typename": "TransactionRequest",
+      "to": "0x…",
+      "from": "0x…",
+      "data": "0x…",
+      "value": "0",
+      "chainId": 1,
+      "operation": "VAULT_DEPLOYED"
+    }
+  }
+}
+
+Retrieve your vaults.
+
+Vault Structure
+Aave Earn Vault data provides comprehensive information about ERC-4626 compliant yield-bearing vaults, including:
+
+Vault identification (address, owner, share token details)
+
+Reserve information (underlying asset, yield strategy)
+
+Fee structure (performance fees, accumulated revenue, fee recipients)
+
+Vault metrics (total balance, user shares)
+
+When you provide a user account address, the data also includes user-specific information such as vault shares owned, deposited amounts, and withdrawn amounts.
+
+TypeScript
+GraphQL
+The following TypeScript interfaces illustrate the core Vault type and its related types:
+
+Vault
+RecipientPercent
+UserVaultShares
+Reserve
+interface Vault {
+  address: EvmAddress;
+  owner: EvmAddress;
+  shareName: string;
+  shareSymbol: string;
+  usedReserve: Reserve;
+  fee: PercentValue;
+  totalFeeRevenue: TokenAmount;
+  balance: TokenAmount;
+  feesBalance: TokenAmount;
+  chainId: ChainId;
+  userShares?: UserVaultShares;
+  feeRecipients?: RecipientPercent[];
+}
+List Vaults
+Fetch multiple vaults with filtering and pagination support.
+
+React
+TypeScript
+GraphQL
+Use the 
+vaults
+ query to fetch available vaults based on filter criteria.
+
+Query
+Response
+query {
+  vaults(
+    request: {
+      criteria: {
+        ownedBy: ["0x742d35cc6e5c4ce3b69a2a8c7c8e5f7e9a0b1234"]
+
+        # OR
+        # vaults: [
+        #   {
+        #     address: "0x1234567890abcdef1234567890abcdef12345678",
+        #     chainId: 1,
+        #   },
+        # ],
+      }
+      pageSize: TEN
+      user: "0x742d35cc6e5c4ce3b69a2a8c7c8e5f7e9a0b1234"
+    }
+  ) {
+    items {
+      address
+      owner
+      shareName
+      shareSymbol
+      fee {
+        raw
+        decimals
+        value
+        formatted
+      }
+      totalFeeRevenue {
+        amount {
+          value
+        }
+        usd
+      }
+      balance {
+        amount {
+          value
+        }
+        usd
+      }
+      feesBalance {
+        amount {
+          value
+        }
+        usd
+      }
+      chainId
+    }
+    pageInfo {
+      next
+      prev
+    }
+  }
+}
+Single Vault
+Retrieve detailed information about a specific vault including underlying reserve and user shares.
+
+React
+TypeScript
+GraphQL
+Use the 
+vault
+ query to fetch detailed information about a specific vault.
+
+Query
+Response
+query {
+  vault(
+    request: {
+      by: {
+        address: "0x1234567890abcdef1234567890abcdef12345678"
+
+        # OR
+        # txHash: "0xeef2ffc57b99ce887edd…"
+      }
+      chainId: 1
+      user: "0x742d35cc6e5c4ce3b69a2a8c7c8e5f7e9a0b1234"
+    }
+  ) {
+    address
+    owner
+    shareName
+    shareSymbol
+    fee {
+      raw
+      decimals
+      value
+      formatted
+    }
+    totalFeeRevenue {
+      amount {
+        value
+      }
+      usd
+    }
+    balance {
+      amount {
+        value
+      }
+      usd
+    }
+    feesBalance {
+      amount {
+        value
+      }
+      usd
+    }
+    usedReserve {
+      underlyingToken {
+        symbol
+        name
+        address
+      }
+      supplyInfo {
+        apy {
+          value
+        }
+      }
+    }
+    userShares {
+      shares {
+        amount {
+          value
+        }
+        usd
+      }
+      amountDeposited {
+        amount {
+          value
+        }
+        usd
+      }
+      amountWithdrawn {
+        amount {
+          value
+        }
+        usd
+      }
+    }
+  }
+}
+User Vault Positions
+Track user vault positions and shares across Aave Earn Vaults.
+
+React
+TypeScript
+GraphQL
+Use the 
+userVaults
+ query to fetch paginated vaults that a user has shares in.
+
+Query
+Response
+query {
+  userVaults(
+    request: {
+      user: "0x742d35cc6e5c4ce3b69a2a8c7c8e5f7e9a0b1234"
+      orderBy: { shares: DESC }
+      pageSize: FIFTY
+    }
+  ) {
+    items {
+      address
+      shareName
+      shareSymbol
+      usedReserve {
+        underlyingToken {
+          symbol
+          name
+        }
+      }
+      userShares {
+        shares {
+          amount {
+            value
+          }
+          usd
+        }
+        amountDeposited {
+          amount {
+            value
+          }
+          usd
+        }
+        amountWithdrawn {
+          amount {
+            value
+          }
+          usd
+        }
+      }
+    }
+    pageInfo {
+      next
+      prev
+    }
+  }
+}
+User Vault Transaction History
+Track user vault transaction history.
+
+React
+TypeScript
+GraphQL
+Use the 
+vaultUserTransactionHistory
+ query to fetch a paginated user's vault transaction history.
+
+Query
+Response
+query {
+  vaultUserTransactionHistory(
+    request: {
+      user: "0x742d35cc6e5c4ce3b69a2a8c7c8e5f7e9a0b1234"
+      vault: "0x1234567890abcdef1234567890abcdef12345678"
+      chainId: 1
+      orderBy: { date: DESC }
+      pageSize: FIFTY
+    }
+  ) {
+    items {
+      ... on VaultUserDepositItem {
+        asset {
+          usd
+          usdPerToken
+          amount {
+            raw
+            decimals
+            value
+          }
+        }
+        shares {
+          usd
+          usdPerToken
+          amount {
+            raw
+            decimals
+            value
+          }
+        }
+        blockExplorerUrl
+        txHash
+        timestamp
+      }
+      ... on VaultUserWithdrawItem {
+        asset {
+          usd
+          usdPerToken
+          amount {
+            raw
+            decimals
+            value
+          }
+        }
+        shares {
+          usd
+          usdPerToken
+          amount {
+            raw
+            decimals
+            value
+          }
+        }
+        blockExplorerUrl
+        txHash
+        timestamp
+      }
+    }
+    pageInfo {
+      next
+      prev
+    }
+  }
+}
+Vault User Activity
+Return a user's activity for a vault, including earnings breakdowns over time.
+
+React
+TypeScript
+GraphQL
+Use the 
+vaultUserActivity
+ query to fetch the user's activity for a vault.
+
+Query
+Response
+query {
+  vaultUserActivity(
+    request: {
+      user: "0x742d35cc6e5c4ce3b69a2a8c7c8e5f7e9a0b1234"
+      vault: "0x1234567890abcdef1234567890abcdef12345678"
+      chainId: 1
+      window: "LAST_WEEK"
+    }
+  ) {
+    earned {
+      usd
+      usdPerToken
+      amount {
+        raw
+        decimals
+        value
+      }
+    }
+    breakdown {
+      balance {
+        usd
+        usdPerToken
+        amount {
+          raw
+          decimals
+          value
+        }
+      }
+      earned {
+        usd
+        usdPerToken
+        amount {
+          raw
+          decimals
+          value
+        }
+      }
+      withdrawals {
+        usd
+        usdPerToken
+        amount {
+          raw
+          decimals
+          value
+        }
+      }
+      deposited {
+        usd
+        usdPerToken
+        amount {
+          raw
+          decimals
+          value
+        }
+      }
+      date
+    }
+  }
+}
+
+Execute core vault operations such as deposits and withdrawals. Users can choose to interact with the vault using either the asset amount deposited or the vault shares minted.
+
+At the time of deposit, shares are issued at a 1:1 ratio to the assets deposited. Over time, as the vault earns interest, each share represents an increasing amount of underlying tokens.
+
+Deposit Assets
+Depositing assets into an Aave Earn Vault gives the user an amount of vault shares.
+
+To deposit assets into an Aave Earn Vault, follow these steps.
+
+1
+
+Identify the Vault
+First, determine which vault you want to deposit assets into.
+
+Let's say we have identified the following vault object:
+
+Vault
+const vault: Vault = {
+  __typename: "Vault",
+  address: "0x1234567890abcdef1234567890abcdef12345678",
+  shareName: "Aave USDC Vault Shares",
+  shareSymbol: "avUSDC",
+  chainId: 1,
+  usedReserve: {
+    __typename: "Reserve",
+    underlyingToken: {
+      __typename: "Currency",
+      symbol: "USDC",
+      name: "USD Coin",
+      address: "0xA0b86a33E6441c8c5f0bb9b7e5e1f8bbf5b78b5c",
+      // …
+    },
+    isFrozen: false,
+    isPaused: false,
+    // …
+  },
+  // …
+};
+Ensure the underlying reserve is not frozen or paused.
+
+2
+
+Preview the Deposit
+Next, preview the deposit operation to determine the amount of vault shares that would be received for a given amount of assets.
+
+React
+TypeScript
+GraphQL
+Use the 
+vaultPreviewDeposit
+ query to preview the deposit operation.
+
+Query
+Response
+query {
+  vaultPreviewDeposit(
+    request: {
+      vault: "0x1234567890abcdef1234567890abcdef12345678"
+      chainId: 1
+      amount: "1000"
+    }
+  ) {
+    usdPerToken
+    amount {
+      raw
+      decimals
+      value
+    }
+    usd
+  }
+}
+3
+
+Prepare the Execution Plan
+Next, create the execution plan for the deposit operation.
+
+By default, the vault's underlying asset will be deposited. To deposit the aToken instead, set the 
+asAToken
+ parameter to 
+true
+.
+
+React
+TypeScript
+GraphQL
+Use the 
+vaultDeposit
+ query to create the execution plan for depositing assets into a vault.
+
+Query
+query {
+  vaultDeposit(
+    request: {
+      chainId: 1
+      vault: "0x1234567890abcdef1234567890abcdef12345678"
+      amount: {
+        value: "1000"
+        # Optional: If set to true, the aToken associated with the vault will be deposited
+        # asAToken: false (default)
+      }
+      depositor: "0x742d35cc6e5c4ce3b69a2a8c7c8e5f7e9a0b1234"
+    }
+  ) {
+    __typename
+    ... on TransactionRequest {
+      to
+      from
+      data
+      value
+      chainId
+      operation
+    }
+    ... on ApprovalRequired {
+      reason
+      requiredAmount {
+        value
+        decimals
+      }
+      currentAllowance {
+        value
+        decimals
+      }
+      approval {
+        to
+        from
+        data
+        value
+        chainId
+        operation
+      }
+      originalTransaction {
+        to
+        from
+        data
+        value
+        chainId
+        operation
+      }
+    }
+    ... on InsufficientBalanceError {
+      required {
+        value
+        decimals
+      }
+      available {
+        value
+        decimals
+      }
+    }
+  }
+}
+4
+
+Process the Execution Plan
+Finally, handle the execution plan.
+
+React
+TypeScript
+GraphQL
+If the response is a TransactionRequest, you can send it directly using the wallet associated with the 
+from
+ address.
+
+TransactionRequest
+{
+  "data": {
+    "vaultDeposit": {
+      "to": "0x1234567890abcdef1234567890abcdef12345678",
+      "from": "0x742d35cc6e5c4ce3b69a2a8c7c8e5f7e9a0b1234",
+      "data": "0x6e553f65000000000000000000000000000000000000000000000000000000003b9aca00000000000000000000000000742d35cc6e5c4ce3b69a2a8c7c8e5f7e9a0b1234",
+      "value": "0",
+      "chainId": 1,
+      "operation": "VAULT_DEPOSIT"
+    }
+  }
+}
+If the response is an 
+ApprovalRequired
+, you must first send the 
+approval
+ transaction. Once it succeeds, you can then send the 
+originalTransaction
+.
+
+ApprovalRequired
+{
+  "data": {
+    "vaultDeposit": {
+      "__typename": "ApprovalRequired",
+      "reason": "Insufficient allowance for ERC-20 token transfer",
+      "requiredAmount": {
+        "value": "1000.0",
+        "decimals": 6
+      },
+      "currentAllowance": {
+        "value": "0.0",
+        "decimals": 6
+      },
+      "approval": {
+        "to": "0xA0b86a33E6441c8c5f0bb9b7e5e1f8bbf5b78b5c",
+        "from": "0x742d35cc6e5c4ce3b69a2a8c7c8e5f7e9a0b1234",
+        "data": "0x095ea7b3000000000000000000000000123456789…",
+        "value": "0",
+        "chainId": 1,
+        "operation": null
+      },
+      "originalTransaction": {
+        "to": "0x1234567890abcdef1234567890abcdef12345678",
+        "from": "0x742d35cc6e5c4ce3b69a2a8c7c8e5f7e9a0b1234",
+        "data": "0x6e553f65000000000000000000000000000000000000000000000000000000003b9aca00000000000000000000000000742d35cc6e5c4ce3b69a2a8c7c8e5f7e9a0b1234",
+        "value": "0",
+        "chainId": 1,
+        "operation": "VAULT_DEPOSIT"
+      }
+    }
+  }
+}
+If the response is an 
+InsufficientBalanceError
+, inform the user that they don't have enough balance to deposit the requested amount.
+
+InsufficientBalanceError
+{
+  "data": {
+    "vaultDeposit": {
+      "__typename": "InsufficientBalanceError",
+      "required": {
+        "value": "1000.0",
+        "decimals": 6
+      },
+      "available": {
+        "value": "750.0",
+        "decimals": 6
+      }
+    }
+  }
+}
+Mint Vault Shares
+Minting vault shares is the process of creating new vault shares by depositing assets into the vault.
+
+To mint vault shares, follow these steps.
+
+1
+
+Identify the Vault
+First, determine which vault you want to mint shares for and the exact amount of shares to mint.
+
+Let's say we want to mint 1000 vault shares from our identified vault object.
+
+Vault
+const vault: Vault = {
+  __typename: "Vault",
+  address: "0x1234567890abcdef1234567890abcdef12345678",
+  shareName: "Aave USDC Vault Shares",
+  shareSymbol: "avUSDC",
+  chainId: 1,
+  usedReserve: {
+    __typename: "Reserve",
+    underlyingToken: {
+      __typename: "Currency",
+      symbol: "USDC",
+      name: "USD Coin",
+      address: "0xA0b86a33E6441c8c5f0bb9b7e5e1f8bbf5b78b5c",
+      // …
+    },
+    isFrozen: false,
+    isPaused: false,
+    // …
+  },
+  // …
+};
+Ensure the underlying reserve is not frozen or paused.
+
+2
+
+Preview the Mint
+Next, preview the mint operation to determine the amount of assets needed to mint the requested amount of vault shares.
+
+React
+TypeScript
+GraphQL
+Use the 
+vaultPreviewMint
+ query to preview the mint operation.
+
+Query
+Response
+query {
+  vaultPreviewMint(
+    request: {
+      vault: "0x1234567890abcdef1234567890abcdef12345678"
+      chainId: 1
+      amount: "1000"
+    }
+  ) {
+    usdPerToken
+    amount {
+      raw
+      decimals
+      value
+    }
+    usd
+  }
+}
+3
+
+Prepare the Execution Plan
+Next, create the execution plan for the mint shares operation.
+
+React
+TypeScript
+GraphQL
+Use the 
+vaultMintShares
+ query to create the execution plan for minting vault shares.
+
+Query
+query {
+  vaultMintShares(
+    request: {
+      chainId: 1
+      vault: "0x1234567890abcdef1234567890abcdef12345678"
+      shares: { amount: "1000" }
+      minter: "0x742d35cc6e5c4ce3b69a2a8c7c8e5f7e9a0b1234"
+      # sharesRecipient: "0x1234…", if different from minter
+    }
+  ) {
+    __typename
+    ... on TransactionRequest {
+      to
+      from
+      data
+      value
+      chainId
+      operation
+    }
+    ... on ApprovalRequired {
+      reason
+      requiredAmount {
+        value
+        decimals
+      }
+      currentAllowance {
+        value
+        decimals
+      }
+      approval {
+        to
+        from
+        data
+        value
+        chainId
+        operation
+      }
+      originalTransaction {
+        to
+        from
+        data
+        value
+        chainId
+        operation
+      }
+    }
+    ... on InsufficientBalanceError {
+      required {
+        value
+        decimals
+      }
+      available {
+        value
+        decimals
+      }
+    }
+  }
+}
+4
+
+Process the Execution Plan
+Finally, handle the execution plan.
+
+React
+TypeScript
+GraphQL
+If the response is a TransactionRequest, you can send it directly using the wallet associated with the 
+from
+ address.
+
+TransactionRequest
+{
+  "data": {
+    "vaultMintShares": {
+      "to": "0x1234567890abcdef1234567890abcdef12345678",
+      "from": "0x742d35cc6e5c4ce3b69a2a8c7c8e5f7e9a0b1234",
+      "data": "0x94bf804d000000000000000000000000000000000000000000000000000000003b9aca00000000000000000000000000742d35cc6e5c4ce3b69a2a8c7c8e5f7e9a0b1234",
+      "value": "0",
+      "chainId": 1,
+      "operation": "VAULT_DEPOSIT"
+    }
+  }
+}
+If the response is an 
+ApprovalRequired
+, you must first send the 
+approval
+ transaction. Once it succeeds, you can then send the 
+originalTransaction
+.
+
+ApprovalRequired
+{
+  "data": {
+    "vaultMintShares": {
+      "__typename": "ApprovalRequired",
+      "reason": "Insufficient allowance for ERC-20 token transfer",
+      "requiredAmount": {
+        "value": "1025.5",
+        "decimals": 6
+      },
+      "currentAllowance": {
+        "value": "0.0",
+        "decimals": 6
+      },
+      "approval": {
+        "to": "0xA0b86a33E6441c8c5f0bb9b7e5e1f8bbf5b78b5c",
+        "from": "0x742d35cc6e5c4ce3b69a2a8c7c8e5f7e9a0b1234",
+        "data": "0x095ea7b3000000000000000000000000123456789…",
+        "value": "0",
+        "chainId": 1,
+        "operation": null
+      },
+      "originalTransaction": {
+        "to": "0x1234567890abcdef1234567890abcdef12345678",
+        "from": "0x742d35cc6e5c4ce3b69a2a8c7c8e5f7e9a0b1234",
+        "data": "0x94bf804d000000000000000000000000000000000000000000000000000000003b9aca00000000000000000000000000742d35cc6e5c4ce3b69a2a8c7c8e5f7e9a0b1234",
+        "value": "0",
+        "chainId": 1,
+        "operation": "VAULT_DEPOSIT"
+      }
+    }
+  }
+}
+If the response is an 
+InsufficientBalanceError
+, inform the user that they don't have enough balance to mint the requested amount of shares.
+
+InsufficientBalanceError
+{
+  "data": {
+    "vaultMintShares": {
+      "__typename": "InsufficientBalanceError",
+      "required": {
+        "value": "1025.5",
+        "decimals": 6
+      },
+      "available": {
+        "value": "750.0",
+        "decimals": 6
+      }
+    }
+  }
+}
+Withdraw Assets
+Withdrawing assets from an Aave Earn Vault gives the user an amount of assets. The corresponding amount of vault shares is burned.
+
+To withdraw assets from an Aave Earn Vault, follow these steps.
+
+1
+
+Identify the User Vault Position
+First, determine which user vault position you want to withdraw assets from.
+
+Let's say we have identified a user vault position with the following details:
+
+Vault Position
+const vault: Vault = {
+  __typename: "Vault",
+  address: "0x1234567890abcdef1234567890abcdef12345678",
+  shareName: "Aave USDC Vault Shares",
+  shareSymbol: "avUSDC",
+  chainId: 1,
+  usedReserve: {
+    __typename: "Reserve",
+    underlyingToken: {
+      __typename: "Currency",
+      symbol: "USDC",
+      name: "USD Coin",
+      address: "0xA0b86a33E6441c8c5f0bb9b7e5e1f8bbf5b78b5c",
+      // …
+    },
+    isFrozen: false,
+    isPaused: false,
+    // …
+  },
+  userShares: {
+    __typename: "UserVaultShares",
+    shares: {
+      __typename: "TokenAmount",
+      amount: {
+        __typename: "DecimalValue",
+        value: "1000.0", // User has 1000 vault shares
+        // …
+      },
+      // …
+    },
+    // …
+  },
+  // …
+};
+Make sure you include a user address when fetching market and reserve data—otherwise 
+Vault.userShares
+ will be empty.
+
+Ensure the underlying reserve is not frozen or paused.
+
+2
+
+Preview the Withdraw
+Next, preview the withdraw operation to determine the amount of shares that will be burned for a given amount of assets.
+
+React
+TypeScript
+GraphQL
+Use the 
+vaultPreviewWithdraw
+ query to preview the withdraw operation.
+
+Query
+Response
+query {
+  vaultPreviewWithdraw(
+    request: {
+      vault: "0x1234567890abcdef1234567890abcdef12345678"
+      chainId: 1
+      amount: "1000"
+    }
+  ) {
+    usdPerToken
+    amount {
+      raw
+      decimals
+      value
+    }
+    usd
+  }
+}
+3
+
+Prepare the Transaction Request
+Next, create the transaction request for the withdrawal operation.
+
+By default, the vault's underlying asset will be withdrawn. To withdraw the aToken instead, set the 
+asAToken
+ parameter to 
+true
+.
+
+React
+TypeScript
+GraphQL
+Use the 
+vaultWithdraw
+ query to create the transaction request for withdrawing assets from a vault.
+
+Query
+query {
+  vaultWithdraw(
+    request: {
+      chainId: 1
+      vault: "0x1234567890abcdef1234567890abcdef12345678"
+      amount: {
+        value: "500"
+        # Optional: If set to true, the aToken associated with the vault will be withdrawn
+        # asAToken: false (default)
+      }
+      sharesOwner: "0x742d35cc6e5c4ce3b69a2a8c7c8e5f7e9a0b1234"
+      # recipient: "0x1234…", if different from sharesOwner
+    }
+  ) {
+    to
+    from
+    data
+    value
+    chainId
+  }
+}
+4
+
+Send the Transaction
+Finally, send the transaction.
+
+React
+TypeScript
+GraphQL
+The response is a TransactionRequest that can be sent directly using the wallet associated with the 
+from
+ address.
+
+TransactionRequest
+{
+  "data": {
+    "vaultWithdraw": {
+      "to": "0x1234567890abcdef1234567890abcdef12345678",
+      "from": "0x742d35cc6e5c4ce3b69a2a8c7c8e5f7e9a0b1234",
+      "data": "0xb460af94000000000000000000000000000000000000000000000000000000001dcd6500000000000000000000000000742d35cc6e5c4ce3b69a2a8c7c8e5f7e9a0b1234000000000000000000000000742d35cc6e5c4ce3b69a2a8c7c8e5f7e9a0b1234",
+      "value": "0",
+      "chainId": 1,
+      "operation": "VAULT_WITHDRAW"
+    }
+  }
+}
+Redeem Vault Shares
+Redeeming vault shares is the process of burning vault shares and receiving the underlying assets.
+
+To redeem vault shares, follow these steps.
+
+1
+
+Identify the User Vault Position
+First, determine which user vault position you want to redeem shares from.
+
+Let's say we have identified a user vault position with the following details:
+
+Vault Position
+const vault: Vault = {
+  __typename: "Vault",
+  address: "0x1234567890abcdef1234567890abcdef12345678",
+  shareName: "Aave USDC Vault Shares",
+  shareSymbol: "avUSDC",
+  chainId: 1,
+  usedReserve: {
+    __typename: "Reserve",
+    underlyingToken: {
+      __typename: "Currency",
+      symbol: "USDC",
+      name: "USD Coin",
+      address: "0xA0b86a33E6441c8c5f0bb9b7e5e1f8bbf5b78b5c",
+      // …
+    },
+    isFrozen: false,
+    isPaused: false,
+    // …
+  },
+  userShares: {
+    __typename: "UserVaultShares",
+    shares: {
+      __typename: "TokenAmount",
+      amount: {
+        __typename: "DecimalValue",
+        value: "1000.0", // User has 1000 vault shares
+        // …
+      },
+      // …
+    },
+    // …
+  },
+  // …
+};
+Make sure you include a user address when fetching market and reserve data—otherwise 
+Vault.userShares
+ will be empty.
+
+Ensure the underlying reserve is not frozen or paused.
+
+2
+
+Preview the Redeem
+Next, preview the redeem operation to determine the amount of assets that will be received for a given amount of shares burned.
+
+React
+TypeScript
+GraphQL
+Use the 
+vaultPreviewRedeem
+ query to preview the redeem operation.
+
+Query
+Response
+query {
+  vaultPreviewRedeem(
+    request: {
+      vault: "0x1234567890abcdef1234567890abcdef12345678"
+      chainId: 1
+      amount: "1000"
+    }
+  ) {
+    usdPerToken
+    amount {
+      raw
+      decimals
+      value
+    }
+    usd
+  }
+}
+3
+
+Prepare the Transaction Request
+Next, create the transaction request for the redeem operation.
+
+React
+TypeScript
+GraphQL
+Use the 
+vaultRedeemShares
+ query to create the transaction request for redeeming vault shares.
+
+Query
+query {
+  vaultRedeemShares(
+    request: {
+      chainId: 1
+      vault: "0x1234567890abcdef1234567890abcdef12345678"
+      shares: { amount: "1000" }
+      sharesOwner: "0x742d35cc6e5c4ce3b69a2a8c7c8e5f7e9a0b1234"
+      # recipient: "0x1234…", if different from sharesOwner
+    }
+  ) {
+    to
+    from
+    data
+    value
+    chainId
+  }
+}
+4
+
+Send the Transaction
+Finally, send the transaction.
+
+React
+TypeScript
+GraphQL
+The response is a TransactionRequest that can be sent directly using the wallet associated with the 
+from
+ address.
+
+TransactionRequest
+{
+  "data": {
+    "vaultRedeemShares": {
+      "to": "0x1234567890abcdef1234567890abcdef12345678",
+      "from": "0x742d35cc6e5c4ce3b69a2a8c7c8e5f7e9a0b1234",
+      "data": "0xba087652000000000000000000000000000000000000000000000000000000003b9aca00000000000000000000000000742d35cc6e5c4ce3b69a2a8c7c8e5f7e9a0b1234000000000000000000000000742d35cc6e5c4ce3b69a2a8c7c8e5f7e9a0b1234",
+      "value": "0",
+      "chainId": 1,
+      "operation": "VAULT_WITHDRAW"
+    }
+  }
+}
+
+Manage your deployed vaults with fee configuration and revenue collection.
+
+Set Vault Fee
+The fee for a vault has to be at least 10%.
+
+Update the performance fee for your vault (vault owner only).
+
+1
+
+Identify the Vault
+First, identify the vault you want to update the fee for.
+
+Let's say we have identified a vault that we own with the following details:
+
+Owned Vault
+const vault: Vault = {
+  __typename: "Vault",
+  address: "0x1234567890abcdef1234567890abcdef12345678",
+  owner: "0x742d35cc6e5c4ce3b69a2a8c7c8e5f7e9a0b1234", // Your address
+  shareName: "Aave USDC Vault Shares",
+  shareSymbol: "avUSDC",
+  chainId: 1,
+  usedReserve: {
+    __typename: "Reserve",
+    underlyingToken: {
+      __typename: "Currency",
+      symbol: "USDC",
+      name: "USD Coin",
+      address: "0xA0b86a33E6441c8c5f0bb9b7e5e1f8bbf5b78b5c",
+      // …
+    },
+    // …
+  },
+  fee: {
+    __typename: "PercentValue",
+    raw: "50000000000000000000000000",
+    decimals: 27,
+    value: "0.11",
+    formatted: "11", // 11% performance fee
+  },
+  totalFeeRevenue: {
+    __typename: "TokenAmount",
+    amount: {
+      __typename: "DecimalValue",
+      value: "1250.75", // Total fees collected
+      // …
+    },
+    // …
+  },
+  // …
+};
+You must be the vault owner to update the fee.
+
+2
+
+Prepare the Transaction Request
+Next, create the transaction request for updating the vault fee.
+
+React
+TypeScript
+GraphQL
+Use the 
+vaultSetFee
+ query to create the transaction request for updating the vault fee.
+
+Query
+query {
+  vaultSetFee(
+    request: {
+      chainId: 1
+      vault: "0x1234567890abcdef1234567890abcdef12345678"
+      newFee: "15"
+    }
+  ) {
+    to
+    from
+    data
+    value
+    chainId
+  }
+}
+3
+
+Send the Transaction
+Finally, send the transaction.
+
+React
+TypeScript
+GraphQL
+The response is a TransactionRequest that can be sent directly using the wallet associated with the 
+from
+ address.
+
+TransactionRequest
+{
+  "data": {
+    "vaultSetFee": {
+      "to": "0x1234567890abcdef1234567890abcdef12345678",
+      "from": "0x742d35cc6e5c4ce3b69a2a8c7c8e5f7e9a0b1234",
+      "data": "0x69fe0e2d000000000000000000000000000000000000000000000000000000000000000f",
+      "value": "0",
+      "chainId": 1
+    }
+  }
+}
+Withdraw Fees
+Withdraw accumulated fees from your vault (vault owner only).
+
+Withdrawn fees are received in the form of the underlying Reserve aTokens.
+
+1
+
+Identify the Vault
+First, identify the vault you want to withdraw fees from.
+
+Let's say we have identified a vault that we own with accumulated fees:
+
+Vault with Fees
+const vault: Vault = {
+  __typename: "Vault",
+  address: "0x1234567890abcdef1234567890abcdef12345678",
+  owner: "0x742d35cc6e5c4ce3b69a2a8c7c8e5f7e9a0b1234", // Your address
+  shareName: "Aave USDC Vault Shares",
+  shareSymbol: "avUSDC",
+  chainId: 1,
+  usedReserve: {
+    __typename: "Reserve",
+    underlyingToken: {
+      __typename: "Currency",
+      symbol: "USDC",
+      name: "USD Coin",
+      address: "0xA0b86a33E6441c8c5f0bb9b7e5e1f8bbf5b78b5c",
+      // …
+    },
+    // …
+  },
+  fee: {
+    __typename: "PercentValue",
+    raw: "150000000000000000000000000",
+    decimals: 27,
+    value: "0.15",
+    formatted: "15", // 15% performance fee
+  },
+  totalFeeRevenue: {
+    __typename: "TokenAmount",
+    amount: {
+      __typename: "DecimalValue",
+      value: "1250.75", // Total fees collected - available for withdrawal
+      // …
+    },
+    usd: "1250.75",
+    // …
+  },
+  feesBalance: {
+    __typename: "TokenAmount",
+    amount: {
+      __typename: "DecimalValue",
+      value: "100.00", // Fees currently available for withdrawal
+      // …
+    },
+    usd: "100.00",
+    // …
+  },
+  // …
+};
+You must be the vault owner to withdraw fees.
+
+2
+
+Prepare the Transaction Request
+Next, create the transaction request for withdrawing fees.
+
+React
+TypeScript
+GraphQL
+Use the 
+vaultWithdrawFees
+ query to create the transaction request for withdrawing fees.
+
+Query
+query {
+  vaultWithdrawFees(
+    request: {
+      chainId: 1
+      vault: "0x1234567890abcdef1234567890abcdef12345678"
+      amount: {
+        exact: "1000"
+        # OR
+        # max: true
+      }
+      # sendTo: "0x1234…", if different from vault owner
+    }
+  ) {
+    to
+    from
+    data
+    value
+    chainId
+  }
+}
+3
+
+Send the Transaction
+Finally, send the transaction.
+
+React
+TypeScript
+GraphQL
+The response is a TransactionRequest that can be sent directly using the wallet associated with the 
+from
+ address.
+
+TransactionRequest
+{
+  "data": {
+    "vaultWithdrawFees": {
+      "to": "0x1234567890abcdef1234567890abcdef12345678",
+      "from": "0x742d35cc6e5c4ce3b69a2a8c7c8e5f7e9a0b1234",
+      "data": "0x441a3e70000000000000000000000000000000000000000000000000000000000000006400000000000000000000000000000000000000000000000000000000000000000",
+      "value": "0",
+      "chainId": 1,
+      "operation": "VAULT_FEE_WITHDRAWN"
+    }
+  }
+}
+Transfer Vault Ownership
+Transfer the ownership of a vault to a new address (vault owner only).
+
+1
+
+Identify the Vault
+First, identify the vault you want to transfer the ownership of.
+
+Let's say we have identified a vault that we own with the following details:
+
+Owned Vault
+const vault: Vault = {
+  __typename: "Vault",
+  address: "0x1234567890abcdef1234567890abcdef12345678",
+  owner: "0x742d35cc6e5c4ce3b69a2a8c7c8e5f7e9a0b1234", // Your address
+  shareName: "Aave USDC Vault Shares",
+  shareSymbol: "avUSDC",
+  chainId: 1,
+  usedReserve: {
+    // …
+  },
+  fee: {
+    // …
+  },
+  totalFeeRevenue: {
+    // …
+  },
+  // …
+};
+You must be the vault owner to transfer the ownership.
+
+2
+
+Prepare the Transaction Request
+Next, create the transaction request for transferring the ownership of the vault.
+
+React
+TypeScript
+GraphQL
+Use the 
+vaultTransferOwnership
+ query to create the transaction request for transferring the ownership of the vault.
+
+Query
+query {
+  vaultTransferOwnership(
+    request: {
+      chainId: 1
+      vault: "0x1234567890abcdef1234567890abcdef12345678"
+      newOwner: "0x1234567890abcdef1234567890abcdef12345678"
+    }
+  ) {
+    to
+    from
+    data
+    value
+    chainId
+  }
+}
+3
+
+Send the Transaction
+Finally, send the transaction.
+
+React
+TypeScript
+GraphQL
+The response is a TransactionRequest that can be sent directly using the wallet associated with the 
+from
+ address.
+
+TransactionRequest
+{
+  "data": {
+    "vaultTransferOwnership": {
+      "to": "0x1234567890abcdef1234567890abcdef12345678",
+      "from": "0x742d35cc6e5c4ce3b69a2a8c7c8e5f7e9a0b1234",
+      "data": "0x69fe0e2d000000000000000000000000000000000000000000000000000000000000000f",
+      "value": "0",
+      "chainId": 1
+    }
+  }
+}

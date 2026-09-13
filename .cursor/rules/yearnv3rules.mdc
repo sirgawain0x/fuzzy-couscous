@@ -1,0 +1,3279 @@
+---
+description: Yearn V3 provides all of the same benefits to integrators as V2, but with increased optionality and standardization.
+alwaysApply: false
+---
+Integrating V3 Vaults
+V3 provides all of the same benefits to integrators as V2, but with increased optionality and standardization.
+
+Vaults
+All V3 vaults, whether multi-strategy or single-strategy, are fully ERC-4626 compliant which greatly simplifies and standardizes integrations.
+
+Deposits
+Deposits follow the standard 4626 flow. It is recommended to use deposit over mint when depositing to a Yearn vault.
+
+Example
+token.approve(vault, amount)
+
+vault.deposit(amount, receiver)
+
+There is also a 4626 Router available to make multi-step user flows easier.
+
+The max amount that a vault will accept from an address can be returned using the maxDeposit function.
+
+Withdrawals
+The standard 4626 withdrawal functionality works for all V3 vaults, however it is recommended to use redeem instead of withdraw.
+
+Optional Parameters
+V3 Vaults have additional, optional parameters that can be added during withdrawals.
+
+maxLoss
+There is a maxLoss parameter for both withdraw and redeem that is denominated in basis points. This value will enforce the max amount of allowable loss the user will accept during the withdraw and revert if the loss is over that amount.
+
+note
+redeem Defaults to a maxLoss of 10_000 (100%), meaning it will allow any amount of loss.
+withdraw Defaults to a maxLoss of 0 (0%), meaning it will not allow any loss.
+Example
+balance = vault.balanceOf(user)
+
+vault.redeem(balance, receiver, user, maxLoss)
+
+warning
+It is recommended to always include maxLoss when possible for the final step in a withdrawal
+
+strategies
+Multi-strategy vaults also have an optional strategies parameter which takes an array (max length of 10) of ordered strategy addresses to withdraw from. This will override the vaults default_queue if the use_default_queue flag is False.
+
+Example
+strategies = [compoundLender, aaveLender]
+
+balance = vault.balanceOf(user)
+
+vault.redeem(balance, receiver, user, 1, strategies)
+
+The max amount that a vault will allow an address to redeem/withdraw can be returned using the maxRedeem/maxWithdraw functions. The multi-strategy vaults will also accept the optional parameters corresponding to redeem/withdraw in these max view functions.
+
+Pricing
+Generic pricing of vault tokens can be done using the standard 4626 convertToShares and convertToAssets functions.
+
+While Yearn takes great care to try and prevent manipulation of the conversion functions, it is important to know that there are some security considerations if using these functions on chain as part of another protocol. Please read more in Yearn vaults as collateral
+
+V3 vaults also contain the legacy pricePerShare function from the V2 Vaults implementation. However, this is intended as a simple off-chain helper and should not be used for on chain integrations due to precision loss.
+
+Periphery
+There are multiple periphery contracts that can be helpful to get information about Yearn vaults on a specific chain.
+
+Registry
+Retrieve all of the endorsed vaults on a specific chain.
+
+getAllEndorsedVaults() Returns a nested array sorted by vaults asset of all endorsed vaults in that registry.
+getEndorsedVaults(address _asset) Returns and array of all endorsed vaults for that asset
+vaultInfo(address _vault) Return the Info struct for an endorsed vault that includes its underlying asset, release version, deployment timestamp, vault 'type' (i.e. multi-strategy or single-strategy) and any tag.
+Role Manager
+Manages all of the multi-strategy vaults on a chain, and holds the role_manager position for those vaults.
+
+All the other periphery contracts and Yearn multisigs can be retrieved from the Role manager as well using the getter functions, such as getBrain()/getPositionHolder(keccak256("Brain")), getRegistry()/getPositionHolder(keccak256("Registry")), getDebtAllocator(vault), .
+
+getAllVaults() Returns and array for all multi-strategy vaults the contract is the role manager for.
+getVault(asset, apiVersion, category) Returns the vault if any based on the inputs.
+Category
+V3 introduces the concept of "categories" for vaults. This is because there will now potentially be multiple multi strategy vaults per underlying asset with the category signalling the difference.
+
+A vault category is appended to the vaults name and symbol that dictates what type of vault it is. For example, 1 vaults are the lowest risk and most similar to the V2 style vaults.
+
+Guide to creating V3 "Tokenized Strategies"
+Overview
+So you wanna be a Yearn strategist?
+
+Can you write 3 lines of code?
+
+Well, then you came to the right place.
+
+The strategy creation process has been very simplified in V3, so it is technically possible to write a Tokenized Strategy with only 3 lines of code. However, most strategies will need more than that. This will guide you through the entire strategy development process from getting your local repo set up through deployment and automation to cashing out those sweet sweet strategist fees.
+
+Introduction
+A strategy's job is to hold the logic responsible for generating yield on some underlying asset. It should hold the code to integrate with an external protocol and do any needed asset deployment, withdraw logic, reward selling, reinvesting LTV maintenance etc. to generate the most possible yield from that particular source most efficiently.
+
+The most significant update to Yearn V3 from V2 was the introduction of "Tokenized Strategies". In V2 strategies were stand-alone contracts that were attached to one specific vault. That vault was the only one who could ever deposit or withdraw funds from the strategy and each had a trusted relationship with the other.
+
+In V3 strategies are now fully ERC-4626-compliant stand-alone vaults. Though their job remains the same (i.e., generate yield from one external source), strategies can now be connected to many different vaults simultaneously and deposited directly into by an end user.
+
+This increased functionality not only means strategies have a much larger potential market of depositors but also means anyone (including you) now can build, deploy, market, and maintain your own Yearn strategy without any need for an endorsement or permission from Yearn.
+
+Why?
+Strategist Fees! - V3 brings back the ability for developers of strategies to earn the fees generated from their strategy. Meaning your earning potential is unlimited.
+Codify Your Yield Farming - Tokenized strategies make it easy for anyone to codify their yield-generating strategies. Wanna keep your alpha private? No problem they come fully customizable to allow for you to be the only one allowed to deposit.
+Simple 4626 Wrappers - Tokenized Strategies make a super easy and cheap way to give any previously deployed protocol an ERC-4626 interface. This opens up any protocol to easily integrate into the rapidly growing 4626 ecosystem (including Yearn Allocator vaults).
+Definitions
+Strategy : A strategy or "Tokenized Strategy" in V3 refers to an ERC-4626 compliant contract that utilizes the TokenizedStrategy pattern that either allocator vaults or individual users can deposit directly into and receive shares in return. The strategy takes the underlying asset and deploys it in a single source in order to generate yield on that asset.
+Vault: Or "Allocator Vault" is a Yearn ERC4626 compliant Smart contract that receives assets from Depositors to distribute among the different Strategies added to the vault, managing accounting and asset distribution.
+Asset: Any ERC20-compliant token
+Shares: ERC20-compliant token that tracks the asset balance in the strategy for every depositor.
+TokenizedStrategy.sol: The implementation contract that all strategies delegateCall to for the standard ERC4626 and profit locking functions.
+BaseStrategy.sol: The abstract contract that a strategy should inherit from that handles all communication with the Tokenized Strategy contract.
+Strategist: The developer of a specific strategy.
+Depositor: Account that deposits the asset and holds Shares
+Management: The owner of the specific strategy that can set fees, profit unlocking time etc.
+Emergency Admin: Address that can call emergency functions on the strategy.
+Keeper: the address of a contract allowed to call report() and tend() on a strategy.
+Factory: The factory that all Allocator Vaults of a specific API version are cloned from that also controls the protocol fee amount and recipient for a strategy.
+Performance Fee: The fee strategies charge during reports based on the yield earned since the last report.
+Performance Fee recipient: The address that receives the shares charged as performance fees.
+Protocol Fee: A fee on the fees charged by strategist sent to the Yearn Treasury.
+Profit Max Unlock Time: Time in seconds over which reported profits will unlock over.
+report: Called by management or keepers to accrue all profits or losses, charge fees, and lock profit to be distributed.
+tend: Called by management or keepers between reports for any maintenance that should happen that doesn't require a full report.
+API Version: The version that a specific Strategy is using for its logic.
+Architecture
+While the complete architecture of the Tokenized Strategy is out of the scope of this document you can read more about how it works here
+
+TLDR: V3 strategies use an immutable proxy pattern to outsource all of its complex, high risk, and redundant code to one TokenizedStrategy.sol implementation contract that is used by every strategy of a specific API version. To use this pattern you simply need to inherit the BaseStrategy.sol contract, that holds all of the logic to communicate with the implementation contract, and then just override a few simple functions with your specific strategy logic.
+
+Getting started
+Yearn has base templates made to build off of built-in both Ape Worx, a python-based development toolkit, and Foundry.
+
+Choose your development framework.
+
+Tokenized Strategy Foundry Mix
+Tokenized Strategy Ape Mix
+Set up the local environment with the selected mix. Each mix has detailed instructions in the "How To Start" section of the README, of specific requirements, cloning instructions, and needed environment variables.
+
+Assure tests pass. Each mix comes with a small set of pre-written tests, to serve as examples and can be used to ensure your local repository is set up correctly before adding your logic.
+
+Strategy Writing
+So you have your idea and local environment setup. Now it's time to start writing your actual strategy.
+
+To create your Tokenized Strategy, you must override at least three functions outlined in the Strategy.sol.
+
+The only default global variables from the BaseStrategy that can be accessed from storage is asset and TokenizedStrategy.
+
+If other global variables are needed for your specific strategy, you can use the TokenizedStrategy variable to quickly retrieve any other needed variables, such as totalAssets, isShutdown etc.
+
+Example
+require(!TokenizedStrategy.isShutdown(), "strategy is shutdown");
+
+_deployFunds(uint256_amount)
+Purpose:
+
+This function is called during every deposit into your strategy to allow it to deploy the underlying asset deposited into the yield source.
+Parameters:
+
+_amount: The total amount of underlying assets currently available for deployment, including the amount deposited and previously idle funds.
+Returns: NONE.
+
+Good to Know:
+
+This function is permissionless, so swaps or LP movements can be sandwiched or manipulated.
+This does not need to deploy the full _amount if the strategy doesn't want to.
+Best Practice:
+
+Override availableDepositLimit with any needed checks like protocol deposit limits or current status. This will alleviate the need to check any of these things during _deployFunds since availableDepositLimit is called during every deposit to check for restrictions.
+_deployFunds() Example
+function _deployFunds(uint256 _amount) internal override \{
+    yieldSource.deposit(address(asset), _amount);
+}
+
+_freeFunds(uint256_amount)
+Purpose:
+
+This function is called during withdraws from your strategy if there is not sufficient idle asset to service the full withdrawal.
+Parameters:
+
+_amount: The amount of the underlying asset that needs to be pulled from the yield source.
+Returns: NONE.
+
+Good to Know:
+
+The amount of loose assets has already been accounted for.
+This function is also entirely permissionless, so swaps or lp values can be sandwiched or otherwise manipulated.
+Users have the ability to specify their own maxLoss on withdraws.
+Best Practice:
+
+Use the _amount parameter passed in rather than relying on .balanceOf(address(this) since idle has already been accounted for.
+Any difference between the _amount parameter and the actual amount withdrawn will count as a loss and be passed on to the withdrawer.
+If your strategy is illiquid or can not always service full withdraws, you can limit the amount by overriding availableWithdrawLimit outlined below.
+_freeFunds() Example
+function _freeFunds(uint256_amount) internal override {
+    yieldSource.withdraw(address(asset), _amount);
+}
+
+_harvestAndReport()
+Purpose:
+
+Called during every report. This should harvest and sell any rewards, reinvest any proceeds, perform any position maintenance and return a full accounting of a trusted amount denominated in the underlying asset the strategy holds.
+Parameters: NONE
+
+Returns:
+
+_totalAssets: A trusted and accurate account for the total amount of 'asset' the strategy currently holds including loose funds.
+Good to Know:
+
+This can only be called by a permissioned address so if set up correctly, it can be trusted to perform swaps, LP movements etc.
+This should account for both deployed and idle assets.
+Best Practice:
+
+The returned value is used to account for all strategy profits, losses and fees so care should be taken when relying on oracle values, LP prices etc. that have the potential to be manipulated.
+This can still be called after a strategy has been shut down so you may want to check if the strategy is shut down before performing certain functions like re-deploying loose funds.
+_harvestAndReport() Example
+function _harvestAndReport() internal override returns (uint256 _totalAssets) {
+    // Only harvest and redeploy if the strategy is not shutdown.
+    if(!TokenizedStrategy.isShutdown()) {
+        // Claim all rewards and sell to asset.
+        _claimAndSellRewards();
+
+        // Check how much we can re-deploy into the yield source.
+        uint256 toDeploy = Math.min(
+            asset.balanceOf(address(this)),
+            availableDepositLimit(address(this))
+        );
+
+        // If greater than 0.
+        if (toDeploy > 0) {
+            // Deposit the sold amount back into the yield source.
+            _deployFunds(toDeploy);
+        }
+    }
+
+    // Return full balance no matter what.
+    _totalAssets = yieldSource.balanceOf(address(this)) + asset.balanceOf(address(this));
+}
+
+Optional Functions
+Simply overriding those three functions will make your strategy a fully functional, permissionless, 4626-compliant stand-alone vault. It can work independently or seamlessly into any Yearn V3 vault.
+
+While that may be all that's necessary for some of the most straightforward strategies, most strategists may want to add more customization or complexity to their strategy. There are five more optional functions that can be overridden by a strategist if desired to continue to build out their Tokenized Strategy.
+
+availableDepositLimit(address _owner)
+Purpose:
+
+This is called during any deposits and can be used to enforce any deposit limit or white list that the strategist desires or that the underlying protocol uses.
+Parameters:
+
+_owner: The address receiving the shares minted during the deposit.
+Returns:
+
+The limit if any that should be enforced on the deposit.
+Good to Know:
+
+This will default to return uint256 max.
+This does not need to consider any conversion rates from assets to shares. But you should know that any limit under uint256 max may get converted to shares and should not be high enough to overflow on multiplication.
+Best Practices:
+
+Check all values for the protocol you are integrating with that may cause deposits to revert.
+Make sure to implement setter functions for any deposit limit or whitelist that are enforced.
+availableDepositLimit() Example
+function availableDepositLimit(
+    address _owner
+) public view override returns (uint256) {
+    if (yieldSource.isPaused()) return 0;
+
+    uint256 totalAssets = TokenizedStrategy.totalAssets();
+    return totalAssets >= depositLimit ? 0 : depositLimit - totalAssets;
+}
+
+availableWithdrawLimit(address _owner)
+
+Purpose:
+
+This is called during every withdraw and can be used to enforce any withdraw limit the strategist desires.
+Parameters:
+
+_owner: The address that owns the shares that would be burnt for the underlying assets.
+Returns:
+
+The limit if any that should be enforced on withdraws.
+Good to Know:
+
+This does not need to consider the balance of the _owner.
+This can be more than the actual amount available to withdraw.
+Recommended use is to have the amount returned not be close to the actual strategies totalAssets to avoid rounding issues.
+Defaults to max uint256.
+Best Practices:
+
+This should be overridden for strategies that have illiquid, or sandwichable positions to prevent reporting incorrect losses on withdraws.
+This should also account for any restrictions the underlying protocol may encounter.
+To just allow the idle funds to be withdrawn use asset.balanceOf(address(this)).
+This does not need to consider conversion rates from assets to shares. But you should know that any limit under uint256 max may get converted to shares and should not be high enough to overflow on multiplication.
+availableWithdrawLimit() Example
+function availableWithdrawLimit(
+    address _owner
+) public view override returns (uint256) {
+    if(positionIsLocked || yieldSource.isPaused()) {
+        return asset.balanceOf(address(this));
+    }
+
+    // Return both the loose balance and the current liqudity of the yield source.
+    return asset.balanceOf(address(this)) + asset.balanceOf(address(yieldSource));
+}
+
+_tend(uint256 _totalIdle)
+
+Purpose:
+
+This would get called during a tend call and can be used if a strategy needs to perform any maintenance or other actions that don't require a full report. If used the strategy should also implement a _tendTrigger that keepers can monitor to know when it should be called.
+Parameters:
+
+_totalIdle: The amount of asset currently loose in the strategy.
+Returns: NONE
+
+Good to Know:
+
+The strategies totalAssets will be the exact before and after a tend as not to have any effect on PPS.
+Best Practices:
+
+This can only be called by the keeper or management so it should be from a trusted source.
+Can be used to perform LTV adjustments on leveraged strategies.
+Can be used to know a trusted relay has been used to deposit idle funds for a strategy that doesn't deploy funds during deposits.
+Example:
+
+_tend() Example
+function _tend(uint256 _totalIdle) internal override {
+    if (currentLTV() < targetLTV()) {
+        _leverUp(_totalIdle);
+    } else if (currentLTV > warningLTV()) {
+        _leverDown(_totalIdle);
+    }
+}
+
+_tendTrigger()
+
+Purpose:
+
+Should return whether or not a keeper should call tend on the strategy. This should be implemented if tend is needed to be used.
+Parameters: NONE.
+
+Returns:
+
+Boolean representing if a keeper should call tend.
+Good to Know:
+
+Default return value is false.
+Best Practices:
+
+Can implement checks on the current base fee of the chain to ensure the gas cost isn't too high.
+Example:
+
+_tendTrigger() Example
+function _tendTrigger() public view override returns (bool) {
+    if (currentLTV() > warningLTV()) {
+        return true;
+    } else if (currentLTV() < lowerBoundLTV()) {
+        return isBaseFeeAcceptable() ? true : false;
+    }
+}
+
+_emergencyWithdraw(uint256 _amount) Purpose:
+
+Allows management to manually pull funds from the yield source once a strategy has been shut down.
+Parameters:
+
+_amount: The specific amount to pull from the yield source
+Returns: NONE.
+
+Good to Know:
+
+This can only be called once a strategy is shut down.
+The _amount can be more than is available to pull.
+The totalAssets will be the same before and after this call.
+Best Practices:
+
+Keep the withdrawal logic as simple as possible.
+Check _amount against the available amount to withdraw.
+Example:
+
+_emergencyWithdraw() Example
+    function _emergencyWithdraw(uint256 _amount) internal override {
+    _amount = min(_amount, yieldSource.balanceOf(address(this)));
+    _freeFunds(_amount);
+}
+
+All other functionality, such as reward selling, upgradability, etc., is up to the strategist to determine what best fits their vision. Due to the ability of strategies to stand alone from a Vault, it is expected and encouraged for strategists to experiment with more complex, risky, or previously unfeasible Strategies.
+
+FYI
+The Tokenized Strategy contract manually track totalAssets. Meaning the only way to update the totalAssets for either profits or losses is through a report call.
+
+NOTE: Writing to a strategy's default global storage state internally post-deployment is impossible. You must make external calls from the management address to configure any desired variables.
+
+To include extra permissioned functions such as setters, there are modifiers for onlyManagement, onlyKeepers and onlyEmergencyAuthorized available by default.
+
+The symbol used for each tokenized Strategy is set automatically with a standardized approach based on the asset's symbol. Strategists should use the name parameter in the constructor for a unique and descriptive name that encapsulates their specific Strategy.
+
+Periphery
+To make Strategy writing as simple as possible, a suite of optional 'Periphery' helper contracts can be inherited by your Strategy to provide standardized and tested functionality for things like swaps. A complete list of the periphery contracts can be viewed here
+
+*All periphery contracts are optional; strategists can choose if they wish to use them.
+
+Swappers
+To make reward swapping as easy and standardized as possible, multiple swapper contracts can be inherited by a strategy to inherit pre-built and tested logic for whichever method of reward swapping is desired. This allows a strategist only to need to set a few global variables and then simply use the default syntax of _swapFrom(tokenFrom, tokenTo, amountIn, minAmountOut) to swap any tokens easily during _harvestAndReport.
+
+APR Oracles
+For easy integration with Vaults, frontends, debt allocators, etc. There is the option to create an APR oracle contract for your specific strategy that should return the expected APR of the Strategy based on some given debtChange.
+
+HealthCheck
+To prevent automated reports from reporting losses/excessive profits that may not be accurate, a strategist can inherit and implement the HealthCheck contract. This can ensure that a keeper will not call a report that may incorrectly realize incorrect losses or excessive gains. It can cause the report to revert if the gain/loss is outside of the desired bounds and will require manual intervention to ensure the strategy is reporting correctly.
+
+NOTE: It is recommended to implement some checks in _harvestAndReport for leveraged or manipulatable strategies that could report incorrect losses due to unforeseen circumstances.
+
+Report Triggers
+The expected behavior is that strategies report profits/losses on a schedule based on their specific profitMaxUnlockTime that management can customize. If a custom trigger cycle is desired or extra checks should be added a strategist can create their own customReportTrigger that can be added to the default contract for a specific strategy.
+
+*More information can be found below in the "Reporting" section.
+
+Testing
+Due to the nature of the BaseStrategy utilizing an external contract for most of its logic, the default interface for any strategy will not allow proper testing of all functions. Testing of your Strategy should utilize the pre-built IStrategyInterface to cast any deployed strategy through for testing, as seen in the testing setups in each mix. You can add any external functions you add for your specific strategy to this interface to test all functions with one variable.
+
+Foundry Example
+Strategy _strategy = new Strategy(asset, name);
+IStrategyInterface strategy =  IStrategyInterface(address(_strategy));
+
+Ape Example
+strategy = management.deploy(project.Strategy, asset, name)
+strategy =  project.IStrategyInterface.at(strategy.address)
+
+Due to the permissionless nature of the Tokenized Strategies, all tests are written without integration with any allocator vault funding it. While those tests can be added, all V3 vaults utilize the ERC-4626 standard for deposit/withdraw and accounting, so they can be plugged in easily to any number of different vaults with the same asset.
+
+Deployment
+Building a factory that can be deployed once is recommended for strategies that will be used with multiple different assets. Then, all strategies can be deployed on the chain using the factory.
+
+Cloning is not recommended for Tokenized Strategies.
+
+Contract Verification
+Once the Strategy is deployed and verified, you must also verify the TokenizedStrategy functions. To do this, navigate to the /#code page on Etherscan.
+
+Click on the More Options drop-down menu.
+Click "is this a proxy?".
+Click the "Verify" button.
+Click "Save".
+This should add all of the external TokenizedStrategy functions to the contract interface on Etherscan.
+
+Operating Your strategy
+Once deployed your strategy should be able to be interacted with as any other ERC-4626 vault.
+
+In addition to the normal 4626 interface, Tokenized Strategies come built-in with some simple functions for management to properly maintain the strategy.
+
+Reporting
+The main operational procedure strategists need to take care of is the reporting of a strategy. Calling report on a strategy must be done by either the 'management' or 'keeper' address.
+
+Reporting causes the strategy to accrue rewards, and record any gains or losses, as well as charge and pay fees. It is needed for the depositors of a vault to earn yield and for the strategist to earn fees.
+
+It is recommended to build strategies on the assumption that reports will happen based on the strategies specific profitMaxUnlockTime.
+
+Since reports are the only time _harvestAndReport will be called any strategies that need more frequent checks or updates should override the_tend and tendTrigger functions for any needed mid-report maintenance.
+
+Keepers
+The easiest way to ensure regular reports and tends on your strategy is to hook it up with a 3rd party keeper.
+
+There are 2 keeper networks that integrate well with Yearn Vaults:
+
+yHaas is Yearn's in-house automation solution for vaults and strategies.
+Gelato Network is a large 3rd party automation solution for different EVM networks.
+Setters
+The strategy comes with some default variables that the management of a strategy can set and update.
+
+Changing management: Changing the strategies management is a two-step process. First, the current management must call setPendingManagement(address) with the desired address to transfer the management to. Then, that address must call acceptManagement() for the change to go into effect.
+Keeper. A strategy manager can set a new address to be the keeper at any time with setKeeper(address).
+Emergency Admin. This will default to address(0) and can be set by the management with setEmergencyAdmin(address).
+Performance Fee. Management can adjust the amount of the gain realized during a report that gets charged as a performance fee with setPerformanceFee(uint16). **Subject to min and max.
+Performance Fee Recipient. Set the address to receive the performance fees charged during a report with setPerformanceFeeRecipient(address).
+Profit Unlocking Period. Profits recorded during reports are slowly unlocked to depositors of a strategy over the strategy-specific 'profitMaxUnlockTime'. This defaults to 10 days and can be changed at any time by the strategist with setProfitMaxUnlockTime(uint256).
+Emergencies
+There are two default emergency functions built in. The first of which is shutdownStrategy(). This can only ever be called by the management or emergencyAdmin and is non-reversible.
+
+Once this is called it will stop any further deposits or mints but will not affect any other functionality including withdraw, redeem, report and tend. This allows management to continue recording profits or losses and users to withdraw even post-shutdown.
+
+This can be used in an emergency or simply to retire a vault.
+
+Once a strategy is shut down management or the emergencyAdmin can also call emergencyWithdraw(_amount), which will tell the strategy to withdraw a specified _amount from the yield source and keep it idle in the vault.
+
+All other emergency functionality is left up to the individual strategist.
+
+Deploying and Managing a V3 Multi Strategy Vault
+V3 makes it as simple as possible for anyone to deploy and manage their own Multi Strategy Vaults. No longer will Yearn be the only manager of Vaults, gate-keeping who can be a debt allocator, or what strategies should be added to a vault. Now, anyone can deploy, manage, and earn fees from their vision and preferences on everything from risk profile, fee model, decentralization, etc.
+
+In V3 our multi strategy or "Allocator Vaults" are designed to be efficient 4626 compliant debt allocators that can have many different "strategies" attached to them and will direct funds to these strategies based on the vault's management choice. The vaults are built to be "plug and play" meaning managers can simply deploy, add their strategies, and start the yield generation. But they also hold many customization factors, allowing different managers to differentiate themselves and experiment with different optionality.
+
+Running your vault requires no need to know how to code. Anyone desiring to manage their strategies and allocations can simply deploy and run their vault.
+
+Definitions
+vault (allocator): ERC-4626 compliant contract that accepts deposits, issues shares, and allocates funds to different strategies to earn yield.
+shares: A tokenized representation of a depositor's share of the underlying balance of a vault.
+strategy: Any ERC-4626 compliant contract that can be added to an allocator vault that earns yield on an underlying asset.
+debt: The amount of the underlying asset that an allocator vault has sent to a strategy to earn yield.
+report: The function where a vault accounts for any profits or losses a strategy has accrued, charges applicable fees, and locks profit to be distributed to depositors.
+role_manager: The position given to an address in a vault that controls what other addresses have rights to call permissioned functions on the vault.
+Deployment
+There are multiple ways to handle deployments of vaults. By far the simplest way to deploy your own multi-strategy vaults is by utilizing the pre-built RoleManager and RoleManagerFactory contracts.
+
+The RoleManagerFactory can be used to deploy a full set of V3 periphery contracts including Accountant, DebtAllocator, Registry and RoleManager contracts and will configure them all automatically to make deployment and management as simple as possible while still allowing full customization where desired.
+
+You can find the deployed RoleManagerFactory contract here.
+
+You will only need three variables.
+
+projectName : The name of your project i.e. "Yearn"
+governance : The main address to be in control of the vaults and RoleManager contract. This should be a fully trusted address.
+management : Secondary address to manage lower risk more day to day needs of the vault such as debt allocations.
+warning
+Make sure your governance and management addresses are NOT the same address as this will prevent you from adding strategies.
+
+projectName = "Project Name"     // Name of your project.
+governance = address(0x69)      // Address to be in charge of the project.
+management = address(0x420)    // Address to help manage vaults.
+
+// Deploy a new RoleManager for your use case
+address myNewRoleManager = roleManagerFactory.newProject(
+    projectName,
+    governance,
+    management
+)
+
+The RoleManager contract deployed will then serve as the role_manager position on any multi-strategy vaults deployed for simple and programmatic setup of your vaults.
+
+You can then use your new RoleManager contract to do one step deployments and setups of any new vaults.
+
+address newVault = myNewRoleManager.newVault(
+    asset,
+    category,
+    vaultName,
+    vaultSymbol
+)
+
+category is used by the RoleManager to classify and store vaults which will allow multiple vault types that use the same underlying address to be deployed. The categorization can be anything a project manager desires or just set to 0 or any other constant for all.
+
+Your new vault will now be deployed, with the Roles given out to each specified address, and Accountant hooked up to charge fees, and endorsed in your registry.
+
+To learn more about how to customize your deployment setups and using the RoleManager contract view the full spec
+
+Alternatively you can manually deploy a vault directly from the factory and do a complete custom setup by following these instructions
+
+Miscellaneous
+There are other options that a vault manager can set that are not necessary for the vault to function but may be desired for further customization.
+
+minimum_total_idle: An amount specified in the underlying asset that the vault will force to remain free in the vault during debt updates to make servicing withdraws cheaper.
+profit_max_unlock_time: The time in which profits reported by the strategies will be distributed to depositors. This can be adjusted to match the current report cycle of the vault's strategies to create a continuous stream of APY paid out to depositors.
+Running the Vault
+Strategy Management
+The job of a vault is to manage debt between strategies that do the yield generation. 3 roles control what strategies are added to the vault, ADD_STRATEGY_MANAGER, REVOKE_STRATEGY_MANAGER, and FORCE_REVOKE_MANAGER.
+
+A strategy can be any contract that has the needed 4626 interface for the vault to interact with it. This includes Tokenized Strategies, 3rd party 4626 vaults, and other allocator vaults.
+
+To add a strategy first call vault.add_strategy(strategy_address).
+
+Each strategy gets added with a default 'max_debt' of 0. This means the MAX_DEBT_MANAGER will need to call vault.update_max_debt_for_strategy(strategy, max_debt).
+
+Once a strategy has been added and given a max_debt, the DEBT_MANAGER role can allocate funds.
+
+To remove a strategy, first remove all the debt from the strategy and then call vault.revoke_strategy(strategy).
+
+If a strategy has issues and cannot pay all of its debt back vault.force_revoke_strategy(strategy) can be used to forcefully remove the strategy.
+
+NOTE: Forcefully removing a strategy that still has debt will cause a loss to be recorded and a reduction of Price Per Share.
+
+Debt Updates
+The DEBT_MANAGER role is in charge of allocating funds between the strategies added to a vault.
+
+By default the DEBT_MANAGER role is given to the DebtAllocator contract deployed by the RoleManagerFactory and is controlled by the management address. For a full explanation of the DebtAllocator visit the full spec
+
+All debt updates are denominated in the underlying asset and are restricted by the max_debt for each strategy and the minimum_total_idle for the specific vault.
+
+Debt updates will also respect the strategies specific maxRedeem and maxDeposit.
+
+To deposit or withdraw vault funds from a strategy simply call vault.update_debt(strategy, desired_debt) where desired debt is the end amount denominated in the underlying asset that the strategy should have after the full debt update.
+
+Debt updates also come with an optional max_loss parameter that is recommended to be used on debt decreases. It works just like the withdraw/redeem parameter of the same name and assures any losses realized on debt decreases are within the expected bounds.
+
+NOTE: If a strategy has unrealized losses you cannot lower its debt.
+
+NOTE: It is recommended to report a strategy's gain before withdrawing 100% of debt from the strategy.
+
+Reporting
+To properly record any profits/losses from a strategy, charge fees, and lock profits for distribution to depositors, the REPORTING_MANAGER will need to "report" for each strategy via vault.process_report(strategy).
+
+The RoleManager will give the REPORTING_MANAGER role by default to the global permissionless Keeper. This means anyone can call process_report on your vault unless otherwise set.
+
+This function will trigger all necessary logic to record a strategy's gain since the last report and begin distributing that profit to depositors over the vault's specific profit_max_unlock_time.
+
+NOTE: To charge fees you will need first to have added an 'accountant' to your vault that will hold the fee logic and receive the fees that are charged.
+
+NOTE: All profit and loss calculations use the strategies 'convertToAssets' function. If this function can be manipulated it can lead to incorrect profits or losses being recorded by the vault
+
+Customization
+Accountant
+You will need to add a separate contract as the vault's 'accountant' to charge fees.
+
+vault.set_accountant(accountant)
+
+*If using the RoleManager/Factory this contract will be automatically deployed and setup during each subsequent vault deployment.
+
+The accountant is called by the vault during every report with the strategy that is reporting and the gain or loss it's reporting. The accountant will then return the total fees or refunds that should be charged by the vault during that report and paid to the accountant.
+
+Accountants can hold any logic that vault managers want to dictate fees or simply charge normal performance or management fees. A ready-to-use Accountant can easily be used with any vault for those who wish just to charge standard fees.
+
+See Here: https://github.com/yearn/vault-periphery/blob/master/contracts/accountants/Accountant.sol
+
+Deposit/Withdraw Limit Modules
+Each vault comes with default deposit and withdraw limits that can be used for out of the box 4626 compliant functionality. However, these limits can also be completely customized for full programmability by adding a deposit_limit_module or withdraw_limit_module respectively.
+
+These modules are stand-alone smart contracts similar to the accountant that if added will be used by the vault to enforce any custom deposit or withdraw limits.
+
+This can be used to enforce a whitelist of depositors, minimum or maximum deposit sizes, liquidity constraints etc.
+
+Note: To set a deposit_limit_module the DEPOSIT_LIMIT_MANAGER will either need to use the optional override flag or first need to set the vaults default deposit_limit to uint256 max. And will not be able to change the deposit_limit without the same flag or unless the deposit_limit_module is removed and set to address(0).
+
+Default Queue
+Each vault has a default_queue based on the strategies added and removed from the vault. The default_queue is used to service withdraws when no custom queue is passed. This queue is simply ordered by the time when strategies were added: where the oldest strategy is at the beginning of the queue.
+
+There is an optional parameter in add_strategy of add_to_queue that defaults to True, but can be set to False if you do not want to add the strategy to the default_queue.
+
+If a different ordering is desired or management wants to remove a certain strategy from the default queue, the QUEUE_MANAGER role can set a new queue.
+
+vault.set_default_queue(new_default_queue)
+
+Where new_default_queue is an array of strategies with a max length of 10, in which all strategies are currently active in the vault.
+
+The vaults QUEUE_MANAGER can also choose to not allow custom queues to be passed into the vault on withdraws at any time by turning on the 'use_default_queue' flag by calling, vault.set_use_default_queue(True).
+
+Good to Know
+What Tokens Not to Use
+There are certain tokens whose native behavior makes them incompatible with being the underlying asset of a vault and should be avoided.
+
+A few examples of this are:
+
+Rebasing Tokens
+Fee on Transfer
+Reentrancy Tokens (ERC-777)
+Any token whose normal functionality breaks the ERC-20 standard may not be compatible with V3 vaults.
+
+Manual Vault Deployment
+tip
+if you are looking for the simplest way to deploy your own multi-strategy vaults we recommend first reading about using the Role Manager Factory on this page.
+
+Definitions
+vault (allocator): ERC-4626 compliant contract that accepts deposits, issues shares, and allocates funds to different strategies to earn yield.
+shares: A tokenized representation of a depositor's share of the underlying balance of a vault.
+strategy: Any ERC-4626 compliant contract that can be added to an allocator vault that earns yield on an underlying asset.
+debt: The amount of the underlying asset that an allocator vault has sent to a strategy to earn yield.
+report: The function where a vault accounts for any profits or losses a strategy has accrued, charges applicable fees, and locks profit to be distributed to depositors.
+role_manager: The position given to an address in a vault that controls what other addresses have rights to call permissioned functions on the vault.
+Deployment
+Each release of the vaults will have its own "Vault Factory" deployed to make it as simple and trustless as possible to deploy your vault. The vault factory allows anyone to trustlessly deploy their own vault which is an exact copy of the previously deployed "original" vault for that specific version.
+
+warning
+Vaults not deployed through the factory will not be recognized as part of the Yearn ecosystem and may experience issues during runtime.
+
+To deploy your vault directly from the factory, simply find the factory's address for the most recent release here and call Factory.deploy_new_vault(params).
+
+The needed parameters are:
+
+asset: The address of an ERC-20 compliant token used as the underlying asset to earn yield for the vault.
+name: The name for your vault that will apply to the token issues to depositors.
+symbol: The symbol the token issued to depositors will use.
+role_manager: The address in charge of giving permissions to other addresses which allow access to certain permissioned functions.
+profit_max_unlock_time: In seconds, profits reported from strategies will be unlocked.
+Once deployed, you can get your vault's address from either the Factory function's return value or the NewVault event emitted by the factory.
+
+The vault should be automatically verified when deployed. However, if it is not you can follow the verification steps on Etherscan using the VaultV3.vy for your specific API Version.
+
+NOTE: The vault factory utilizes create2 opcode to deploy vaults to deterministic addresses. This means the same address can not deploy two vaults with the same default parameters for 'asset', 'name' and 'symbol'.
+
+Setup
+Once deployed, additional setup steps and variables can be configured if desired.
+
+Roles
+The first is to set up the Roles for your specific vault. The vaults use a role-based system for access control to the permissioned functions. The roles are a Vyper Enumerator pattern based on Pythons.
+
+Each permissioned function in the Vaults has its own "role" that can call that specific function. For example, to call add_strategy(new_strategy: address) the address must have the ADD_STRATEGY_MANAGER role. Roles can be held by any number of addresses or by no address.
+
+The same address can hold every role, each role can be held by a different address or any combination desired.
+
+The address sent during deployment as role_manager is in charge of assigning roles to different addresses.
+
+A full explanation of python enumerators is beyond the scope of this doc, but the corresponding int to each role can be viewed here
+
+To give an account a specific role you can simply call vault.set_role(account, role) where 'role' is the int representing all the roles you would like the 'account' to hold. This will override all roles previously held by the address.
+
+The role manager can also use vault.add_role(account, role_to_add) to only add 1 new role to the existing roles that account already has. Or vault.remove_role(account, role_to_remove) to remove just one role without overriding the full bitmap.
+
+Examples
+# Set `account` to be the ADD_STRATEGY_MANAGER
+vault.set_role(account, 1)
+
+# Set `account` to be both the ADD_STRATEGY_MANAGER and REVOKE_STRATEGY_MANAGER
+vault.set_role(account, 3)
+
+# Add the REPORTING_MANAGER role to the accounts already held roles.
+vault.add_role(account, 32)
+
+# Remove just the REVOKE_STRATEGY_MANAGER role.
+vault.remove_role(account, 2)
+
+# Set `account` to hold every role
+vault.set_role(account, 16383)
+
+# Set `account` to hold no roles
+vault.set_role(account, 0)
+
+NOTE: The vault role_manager can not call any permissioned function by default, and would have to give itself any roles that it should have.
+
+Deposit Limit
+Each vault will default to have a deposit limit set to 0. Which means all deposits will revert.
+
+Once ready, the address with the DEPOSIT_LIMIT_MANAGER will need to either set a deposit_limit > 0 or add a deposit_limit_module.
+
+Periphery
+Yearn V3 is built to be modular and customizable by anyone wishing to run their own vault. In order to do this the core code has been left as un-opinionated as possible while allowing it to be customized through the use of optional "Periphery" contracts or "modules".
+
+This is a non-exhaustive list of the current periphery contracts developed or deployed in order to assist those wishing to deploy/manage their own V3 vaults.
+
+For the most updated contracts visit:
+
+Vault Periphery Repo: https://github.com/yearn/vault-periphery TokenizedStrategy Periphery: https://github.com/yearn/tokenized-strategy-periphery
+
+The deployed address of most periphery contracts or their corresponding factories can be found on chain from the Protocol Address provider: 0x775F09d6f3c8D2182DFA8bce8628acf51105653c
+
+The Yearn-specific periphery contracts can be retrieved from the relevant chain's Role Manager
+
+Vault Periphery
+The contracts in the 'Vault Periphery' are meant to be used alongside a V3 multi strategy vault in order to help add additional functionality.
+
+Release Registry
+https://github.com/yearn/vault-periphery/blob/master/contracts/registry/ReleaseRegistry.sol
+
+Yearn controlled registry to track any new versions of V3 released on that specific chain.
+
+Each time a new Version of the Vault Factory is deployed it will get added to the Release Registry.
+
+Registry
+https://github.com/yearn/vault-periphery/blob/master/contracts/registry/Registry.sol
+
+Stores the endorsed multi strategy and single strategy vaults. Can also deploy new multi strategy vaults based on the most recent Vault Factory added to the Release Registry.
+
+newEndorsedVault(...) Deploy and endorse a new multi strategy vault.
+Deploy a custom Registry using the RegistryFactory
+
+Accountant
+https://github.com/yearn/vault-periphery/tree/master/contracts/accountants
+
+By default V3 multi strategy vaults have fees set to 0 and will need an accountant set to charge fees.
+
+If set an accountant is called during each process_report with the relevant information for the strategies report. The accountant can hold any logic desired to charge performance fees, management fees, issue refunds, perform healthchecks etc.
+
+Some possible non-standard uses of an accountant could be:
+
+Auto compounding rewards back into the vault
+Setting up a Junior Tranche
+Tiered fees based on % returns or TVL
+To deploy a generic account use the Accountant Factory and then call set_accountant on the vault.
+
+Debt Allocator
+https://github.com/yearn/vault-periphery/tree/master/contracts/debtAllocators
+
+To manager the allocation of debt between multiple strategies in a multi strategy vault some generic Debt Allocators have been developed. These contracts are meant to be given the DEBT_MANAGER and REPORTING_MANAGER roles for a specific vault and then monitored by a keeper to manage the allocations based on set 'target ratios'.
+
+The owner of the Debt allocator can set multiple parameters that will dictate when a keeper should call the update_debt function on the allocator based on the return value of the shouldUpdateDebt view function.
+
+targetDebtRatio A percent (in basis points) for the allocator to target a specific strategy to have. EX: 5_000 == 50% of the vaults funds.
+maxDebtRatio The max percent (in basis points) for the allocator to allow a strategy to have.
+minimumChange The minimum amount in terms of the underlying asset to be moved to trigger a debt update.
+maxAcceptableBaseFee The maximum the block.basefee is allowed to be during debt updates to save gas.
+maxDebtUpdateLoss The value to send as maxLoss for a debt update. Default is 1 (0.01%).
+keeper Allow an address to call the update_debt function.
+manager Non-governance address that is allowed to update the strategies target and max debt ratios.
+You can deploy a single generic Debt Allocator using the Debt Allocator Factory for any V3 vault.
+
+Role Manager
+https://github.com/yearn/vault-periphery/blob/master/contracts/Managers/RoleManager.sol
+
+The Role Manager is used to hold the role_manager position in Yearns multi strategy vaults and make deployments simpler. All role configuration and periphery contracts are set up during the vaults deployment.
+
+Yearn specific periphery contracts can also all be retrieved on chain from the Role Manager on that chain.
+
+For Yearn specific implementation addresses check Contract Addresses
+
+Protocol Fees
+The V3 system sees the introduction of "Protocol Fees" to the stack, a percentage charged each time a V3 vault or strategy "reports".
+
+Protocol fees give the managers of vaults and strategies complete control over the fees charged while rewarding Yearn for supplying the infrastructure those vaults are built on.
+
+Yearn Governance dictates the amount of the Protocol fee and can be set anywhere between 0 - 50%. Yearn governance also holds the ability to set custom protocol fees for individual vaults and strategies. Allowing full customization of the system.
+
+Example
+profit = 100
+performance_fee = 20%
+protocol_fee = 10%
+
+total_fees = profit * performance_fee = 20
+protocol_fees = total_fees * protocol_fee = 2
+performance_fees = total_fees - protocol_fees = 18
+
+18 would get paid to the vault managers performance_fee_recipient.
+2 would get paid to the Yearn Treasury.
+
+You can retrieve both the default protocol fee as well as if a custom config has been set for a specific vault or strategy using the Vault Factory that corresponds to that vault's API.
+
+Examples
+# Retrieve the default config.
+vaultFactory.protocol_fee_config()
+
+# Check a specific vault current config to be used
+vaultFactory.protocol_fee_config(vault_address)
+
+yVaults v3 Contract Addresses
+✅ All Addresses on this page match on-chain data. Last checked on: 11/3/2025, 11:32:51 PM UTC
+info
+Deployments are done using create2 factories and should be stable across all EVM chains the protocol has been deployed on.
+
+If any of the core contracts have not been deployed on a specific chain it can be done permissionlessly using this CLI tool or via the scripts in the relevant GitHub repo. If you have issues or questions, please reach out to a Yearn contributor for help.
+
+Protocol Addresses
+These are the deployed protocol contracts that can be used by anyone to create and manage yVaults. For Yearn implementation-specific contracts see #Yearn Addresses
+
+All Protocol Specific contracts can be found by starting with the ProtocolAddressProvider contract as the top level directory and then the ReleaseRegistry. The VaultFactory and TokenizedStrategy contracts can be found in the Release Registry and the Vault Original can be found in the VaultFactory.
+
+The Role Manager Factory provides the easiest way to deploy and manage your own V3 vaults. More information on that here.
+
+Name / ENS	Contract Address
+Protocol Address Provider
+address-provider.v3.ychad.eth	0x775F09d6f3c8D2182DFA8bce8628acf51105653c
+Release Registry
+release.registry.v3.ychad.eth	0x0377b4daDDA86C89A0091772B79ba67d0E5F7198
+Role Manager Factory
+0xca12459a931643BF28388c67639b3F352fe9e5Ce
+Core Contract Addresses
+Core contracts are the base generic contracts that can be used by anyone who wants to build on v3 yVaults.
+
+Version 3.0.4
+Vault original: 0xd8063123BBA3B480569244AE66BFE72B6c84b00d
+VaultFactory: 0x770D0d1Fb036483Ed4AbB6d53c1C88fb277D812F
+TokenizedStrategy: 0xD377919FA87120584B21279a491F82D5265A139c
+Version 3.0.3
+Vault original: 0xcA78AF7443f3F8FA0148b746Cb18FF67383CDF3f
+VaultFactory: 0x5577EdcB8A856582297CdBbB07055E6a6E38eb5f
+TokenizedStrategy: 0x254A93feff3BEeF9cA004E913bB5443754e8aB19
+Version 3.0.2
+Vault original: 0x1ab62413e0cf2eBEb73da7D40C70E7202ae14467
+VaultFactory: 0x444045c5C13C246e117eD36437303cac8E250aB0
+TokenizedStrategy: 0xBB51273D6c746910C7C06fe718f30c936170feD0
+Version 3.0.1
+Vault ERC-5202 BluePrint: 0xDE992C652b266AE649FEC8048aFC35954Bee6145
+VaultFactory : 0xE9E8C89c8Fc7E8b8F23425688eb68987231178e5
+TokenizedStrategy : 0xDFC8cD9F2f2d306b7C0d109F005DF661E14f4ff2
+Periphery Contracts
+All generic periphery contracts and factories can be retrieved on chain from the AddressProvider Contract:
+
+Name / ENS	Periphery Contract Address
+Protocol Address Provider
+address-provider.v3.ychad.eth	0x775F09d6f3c8D2182DFA8bce8628acf51105653c
+APR Oracle
+apr.oracle.v3.ychad.eth	0x1981AD9F44F2EA9aDd2dC4AD7D075c102C70aF92
+Common Report Trigger
+0xf8dF17a35c88AbB25e83C92f9D293B4368b9D52D
+4626 Router
+0x1112dbCF805682e828606f74AB717abf4b4FD8DE
+Accountant Factory
+0xF728f839796a399ACc2823c1e5591F05a31c32d1
+Debt Allocator Factory
+0x03D43dF6FF894C848fC6F1A0a7E8a539Ef9A4C18
+Registry Factory
+0x3A0fa8aac82aD94048098D6af6e8eB36c98816A1
+Splitter Factory
+0xe28fCC9FB2998ba57754789F6666DAa8C815614D
+Auction Factory
+0xbC587a495420aBB71Bbd40A0e291B64e80117526
+Keeper
+0x52605BbF54845f520a3E94792d019f62407db2f8
+Base Fee Provider
+0xe0514dd71cfdc30147e76f65c30bdf60bfd437c3
+For a more complete list of all available periphery contracts visit the Periphery section.
+
+Yearn Specific Addresses
+Yearn Specific contracts and roles, as well as the most up to date V3 registry can be retrieved on chain from the Role Manager.
+
+To find individual vaults, use the V3 Registry below or refer to https://yearn.fi
+
+EVM Stable Addresses
+These addresses are consistent across all EVM chains.
+
+Name / ENS	Contract Address
+Current V3 Registry
+registry.v3.ychad.eth	0xd40ecF29e001c76Dcc4cC0D9cd50520CE845B038
+Legacy V3 Registry
+0xff31A1B020c868F6eA3f61Eb953344920EeCA3af
+
+Ethereum Mainnet (1) Addresses
+Ethereum-specific Yearn addresses
+Name / ENS	Contract Address
+Role Manager
+role-manager.v3.ychad.eth	0xb3bd6b2e61753c311efbcf0111f75d29706d9a41
+Accountant
+accountant.v3.ychad.eth	0x5A74Cb32D36f2f517DB6f7b0A0591e09b22cDE69
+
+Optimism (10) Addresses
+Optimism-specific Yearn addresses
+Name / ENS	Contract Address
+Role Manager
+0x0000000000000000000000000000000000000000
+Accountant
+0x0000000000000000000000000000000000000000
+
+Polygon (137) Addresses
+Polygon-specific Yearn addresses
+Name / ENS	Contract Address
+Role Manager
+0x9bcD66bf09ebe5DD35A868307B7638Fd281061E2
+Accountant
+0x54483f1592ab0aDea2757Ae0d62e6393361d4CEe
+
+Base (8453) Addresses
+Base-specific Yearn addresses
+Name / ENS	Contract Address
+Role Manager
+0xea3481244024E2321cc13AcAa80df1050f1fD456
+Accountant
+0x1f399808fE52d0E960CAB84b6b54d5707ab27c8a
+
+Arbitrum (42161) Addresses
+Arbitrum-specific Yearn addresses
+Name / ENS	Contract Address
+Role Manager
+0x3BF72024420bdc4D7cA6a8b6211829476D6685b1
+Accountant
+0x9ab47be62631036cda3a64b8322704988427f366
+
+Katana (747474) Addresses
+Katana-specific Yearn addresses
+Name / ENS	Contract Address
+Role Manager
+0x4671394A28FF147cfcBc9c2b1aab9d3883597417
+Accountant
+0x1f399808fE52d0E960CAB84b6b54d5707ab27c8a
+
+BaseStrategy
+Git Source
+
+Author: yearn.finance
+
+BaseStrategy implements all of the required functionality to seamlessly integrate with the TokenizedStrategy implementation contract allowing anyone to easily build a fully permissionless ERC-4626 compliant Vault by inheriting this contract and overriding three simple functions. It utilizes an immutable proxy pattern that allows the BaseStrategy to remain simple and small. All standard logic is held within the TokenizedStrategy and is reused over any n strategies all using the fallback function to delegatecall the implementation so that strategists can only be concerned with writing their strategy specific code. This contract should be inherited and the three main abstract methods _deployFunds, _freeFunds and _harvestAndReport implemented to adapt the Strategy to the particular needs it has to generate yield. There are other optional methods that can be implemented to further customize the strategy if desired. All default storage for the strategy is controlled and updated by the TokenizedStrategy. The implementation holds a storage struct that contains all needed global variables in a manual storage slot. This means strategists can feel free to implement their own custom storage variables as they need with no concern of collisions. All global variables can be viewed within the Strategy by a simple call using the TokenizedStrategy variable. IE: TokenizedStrategy.globalVariable();.
+
+State Variables
+tokenizedStrategyAddress
+This is the address of the TokenizedStrategy implementation contract that will be used by all strategies to handle the accounting, logic, storage etc. Any external calls to the that don't hit one of the functions defined in this base or the strategy will end up being forwarded through the fallback function, which will delegateCall this address. This address should be the same for every strategy, never be adjusted and always be checked before any integration with the Strategy.
+
+address public constant tokenizedStrategyAddress = 0x2e234DAe75C793f67A35089C9d99245E1C58470b;
+
+
+asset
+Underlying asset the Strategy is earning yield on. Stored here for cheap retrievals within the strategy.
+
+ERC20 internal immutable asset;
+
+TokenizedStrategy
+This variable is set to address(this) during initialization of each strategy. This can be used to retrieve storage data within the strategy contract as if it were a linked library. i.e. uint256 totalAssets = TokenizedStrategy.totalAssets() Using address(this) will mean any calls using this variable will lead to a call to itself. Which will hit the fallback function and delegateCall that to the actual TokenizedStrategy.
+
+ITokenizedStrategy internal immutable TokenizedStrategy;
+
+Functions
+onlySelf
+Used on TokenizedStrategy callback functions to make sure it is post a delegateCall from this address to the TokenizedStrategy.
+
+modifier onlySelf();
+
+onlyManagement
+Use to assure that the call is coming from the strategies management.
+
+modifier onlyManagement();
+
+onlyKeepers
+Use to assure that the call is coming from either the strategies management or the keeper.
+
+modifier onlyKeepers();
+
+onlyEmergencyAuthorized
+Use to assure that the call is coming from either the strategies management or the emergency admin.
+
+modifier onlyEmergencyAuthorized();
+
+_onlySelf
+Require that the msg.sender is this address.
+
+function _onlySelf() internal view;
+
+constructor
+Used to initialize the strategy on deployment. This will set the TokenizedStrategy variable for easy internal view calls to the implementation. As well as initializing the default storage variables based on the parameters and using the deployer for the permissioned roles.
+
+constructor(address _asset, string memory _name);
+
+Parameters
+
+Name	Type	Description
+_asset	address	Address of the underlying asset.
+_name	string	Name the strategy will use.
+_deployFunds
+Can deploy up to '_amount' of 'asset' in the yield source. This function is called at the end of a deposit or mint call. Meaning that unless a whitelist is implemented it will be entirely permissionless and thus can be sandwiched or otherwise manipulated.
+
+function _deployFunds(uint256 _amount) internal virtual;
+
+Parameters
+
+Name	Type	Description
+_amount	uint256	The amount of 'asset' that the strategy can attempt to deposit in the yield source.
+_freeFunds
+Should attempt to free the '_amount' of 'asset'. NOTE: The amount of 'asset' that is already loose has already been accounted for. This function is called during withdraw and redeem calls. Meaning that unless a whitelist is implemented it will be entirely permissionless and thus can be sandwiched or otherwise manipulated. Should not rely on asset.balanceOf(address(this)) calls other than for diff accounting purposes. Any difference between _amount and what is actually freed will be counted as a loss and passed on to the withdrawer. This means care should be taken in times of illiquidity. It may be better to revert if withdraws are simply illiquid so not to realize incorrect losses.
+
+function _freeFunds(uint256 _amount) internal virtual;
+
+Parameters
+
+Name	Type	Description
+_amount	uint256	
+_harvestAndReport
+Internal function to harvest all rewards, redeploy any idle funds and return an accurate accounting of all funds currently held by the Strategy. This should do any needed harvesting, rewards selling, accrual, redepositing etc. to get the most accurate view of current assets. NOTE: All applicable assets including loose assets should be accounted for in this function. Care should be taken when relying on oracles or swap values rather than actual amounts as all Strategy profit/loss accounting will be done based on this returned value. This can still be called post a shutdown, a strategist can check TokenizedStrategy.isShutdown() to decide if funds should be redeployed or simply realize any profits/losses.
+
+function _harvestAndReport() internal virtual returns (uint256 _totalAssets);
+
+Returns
+
+Name	Type	Description
+_totalAssets	uint256	A trusted and accurate account for the total amount of 'asset' the strategy currently holds including idle funds.
+_tend
+Optional function for strategist to override that can be called in between reports. If '_tend' is used tendTrigger() will also need to be overridden. This call can only be called by a permissioned role so may be through protected relays. This can be used to harvest and compound rewards, deposit idle funds, perform needed position maintenance or anything else that doesn't need a full report for. EX: A strategy that can not deposit funds without getting sandwiched can use the tend when a certain threshold of idle to totalAssets has been reached. This will have no effect on PPS of the strategy till report() is called.
+
+function _tend(uint256 _totalIdle) internal virtual;
+
+Parameters
+
+Name	Type	Description
+_totalIdle	uint256	The current amount of idle funds that are available to deploy.
+_tendTrigger
+Optional trigger to override if tend() will be used by the strategy. This must be implemented if the strategy hopes to invoke _tend().
+
+function _tendTrigger() internal view virtual returns (bool);
+
+Returns
+
+Name	Type	Description
+<none>	bool	. Should return true if tend() should be called by keeper or false if not.
+tendTrigger
+Returns if tend() should be called by a keeper.
+
+function tendTrigger() external view virtual returns (bool, bytes memory);
+
+Returns
+
+Name	Type	Description
+<none>	bool	. Should return true if tend() should be called by keeper or false if not.
+<none>	bytes	. Calldata for the tend call.
+availableDepositLimit
+Gets the max amount of asset that an address can deposit.
+
+Defaults to an unlimited amount for any address. But can be overridden by strategists. This function will be called before any deposit or mints to enforce any limits desired by the strategist. This can be used for either a traditional deposit limit or for implementing a whitelist etc. EX: if(isAllowed[_owner]) return super.availableDepositLimit(_owner); This does not need to take into account any conversion rates from shares to assets. But should know that any non max uint256 amounts may be converted to shares. So it is recommended to keep custom amounts low enough as not to cause overflow when multiplied by totalSupply.
+
+function availableDepositLimit(address) public view virtual returns (uint256);
+
+Parameters
+
+Name	Type	Description
+<none>	address	
+Returns
+
+Name	Type	Description
+<none>	uint256	. The available amount the _owner can deposit in terms of asset
+availableWithdrawLimit
+Gets the max amount of asset that can be withdrawn.
+
+Defaults to an unlimited amount for any address. But can be overridden by strategists. This function will be called before any withdraw or redeem to enforce any limits desired by the strategist. This can be used for illiquid or sandwichable strategies. It should never be lower than totalIdle. EX: return TokenIzedStrategy.totalIdle(); This does not need to take into account the _owner's share balance or conversion rates from shares to assets.
+
+function availableWithdrawLimit(address) public view virtual returns (uint256);
+
+Parameters
+
+Name	Type	Description
+<none>	address	
+Returns
+
+Name	Type	Description
+<none>	uint256	. The available amount that can be withdrawn in terms of asset
+_emergencyWithdraw
+*Optional function for a strategist to override that will allow management to manually withdraw deployed funds from the yield source if a strategy is shutdown. This should attempt to free _amount, noting that _amount may be more than is currently deployed. NOTE: This will not realize any profits or losses. A separate report will be needed in order to record any profit/loss. If a report may need to be called after a shutdown it is important to check if the strategy is shutdown during _harvestAndReport so that it does not simply re-deploy all funds that had been freed.
+
+Example
+if(freeAsset > 0 && !TokenizedStrategy.isShutdown()) {
+depositFunds...
+}
+
+function _emergencyWithdraw(uint256 _amount) internal virtual;
+
+Parameters
+
+Name	Type	Description
+_amount	uint256	The amount of asset to attempt to free.
+deployFunds
+Can deploy up to '_amount' of 'asset' in yield source.
+
+Callback for the TokenizedStrategy to call during a deposit or mint to tell the strategy it can deploy funds. Since this can only be called after a deposit or mint delegateCall to the TokenizedStrategy msg.sender == address(this). Unless a whitelist is implemented this will be entirely permissionless and thus can be sandwiched or otherwise manipulated.
+
+function deployFunds(uint256 _amount) external virtual onlySelf;
+
+Parameters
+
+Name	Type	Description
+_amount	uint256	The amount of 'asset' that the strategy can attempt to deposit in the yield source.
+freeFunds
+Should attempt to free the '_amount' of 'asset'.
+
+Callback for the TokenizedStrategy to call during a withdraw or redeem to free the needed funds to service the withdraw. This can only be called after a 'withdraw' or 'redeem' delegateCall to the TokenizedStrategy so msg.sender == address(this).
+
+function freeFunds(uint256 _amount) external virtual onlySelf;
+
+Parameters
+
+Name	Type	Description
+_amount	uint256	The amount of 'asset' that the strategy should attempt to free up.
+harvestAndReport
+Returns the accurate amount of all funds currently held by the Strategy.
+
+Callback for the TokenizedStrategy to call during a report to get an accurate accounting of assets the strategy controls. This can only be called after a report() delegateCall to the TokenizedStrategy so msg.sender == address(this).
+
+function harvestAndReport() external virtual onlySelf returns (uint256);
+
+Returns
+
+Name	Type	Description
+<none>	uint256	. A trusted and accurate account for the total amount of 'asset' the strategy currently holds including idle funds.
+tendThis
+Will call the internal '_tend' when a keeper tends the strategy.
+
+Callback for the TokenizedStrategy to initiate a _tend call in the strategy. This can only be called after a tend() delegateCall to the TokenizedStrategy so msg.sender == address(this). We name the function tendThis so that tend calls are forwarded to the TokenizedStrategy.
+
+function tendThis(uint256 _totalIdle) external virtual onlySelf;
+
+Parameters
+
+Name	Type	Description
+_totalIdle	uint256	The amount of current idle funds that can be deployed during the tend
+shutdownWithdraw
+Will call the internal '_emergencyWithdraw' function.
+
+Callback for the TokenizedStrategy during an emergency withdraw. This can only be called after a emergencyWithdraw() delegateCall to the TokenizedStrategy so msg.sender == address(this). We name the function shutdownWithdraw so that emergencyWithdraw calls are forwarded to the TokenizedStrategy.
+
+function shutdownWithdraw(uint256 _amount) external virtual onlySelf;
+
+Parameters
+
+Name	Type	Description
+_amount	uint256	The amount of asset to attempt to free.
+_delegateCall
+Function used to delegate call the TokenizedStrategy with certain _calldata and return any return values. This is used to setup the initial storage of the strategy, and can be used by strategist to forward any other call to the TokenizedStrategy implementation.
+
+function _delegateCall(bytes memory _calldata) internal returns (bytes memory);
+
+Parameters
+
+Name	Type	Description
+_calldata	bytes	The abi encoded calldata to use in delegatecall.
+Returns
+
+Name	Type	Description
+<none>	bytes	. The return value if the call was successful in bytes.
+fallback
+Execute a function on the TokenizedStrategy and return any value. This fallback function will be executed when any of the standard functions defined in the TokenizedStrategy are called since they won't be defined in this contract. It will delegatecall the TokenizedStrategy implementation with the exact calldata and return any relevant values.
+
+fallback() external;
+
+TokenizedStrategy
+Git Source
+
+Author: yearn.finance
+
+This TokenizedStrategy can be used by anyone wishing to easily build and deploy their own custom ERC4626 compliant single strategy Vault. The TokenizedStrategy contract is meant to be used as the proxy implementation contract that will handle all logic, storage and management for a custom strategy that inherits the BaseStrategy. Any function calls to the strategy that are not defined within that strategy will be forwarded through a delegateCall to this contract. A strategist only needs to override a few simple functions that are focused entirely on the strategy specific needs to easily and cheaply deploy their own permissionless 4626 compliant vault.
+
+State Variables
+API_VERSION
+API version this TokenizedStrategy implements.
+
+string internal constant API_VERSION = "3.0.4";
+
+ENTERED
+Value to set the entered flag to during a call.
+
+uint8 internal constant ENTERED = 2;
+
+NOT_ENTERED
+Value to set the entered flag to at the end of the call.
+
+uint8 internal constant NOT_ENTERED = 1;
+
+MAX_FEE
+Maximum in Basis Points the Performance Fee can be set to.
+
+uint16 public constant MAX_FEE = 5_000;
+
+MAX_BPS
+Used for fee calculations.
+
+uint256 internal constant MAX_BPS = 10_000;
+
+MAX_BPS_EXTENDED
+Used for profit unlocking rate calculations.
+
+uint256 internal constant MAX_BPS_EXTENDED = 1_000_000_000_000;
+
+SECONDS_PER_YEAR
+Seconds per year for max profit unlocking time.
+
+uint256 internal constant SECONDS_PER_YEAR = 31_556_952;
+
+BASE_STRATEGY_STORAGE
+Custom storage slot that will be used to store the StrategyData struct that holds each strategies specific storage variables. Any storage updates done by the TokenizedStrategy actually update the storage of the calling contract. This variable points to the specific location that will be used to store the struct that holds all that data. We use a custom string in order to get a random storage slot that will allow for strategists to use any amount of storage in their strategy without worrying about collisions.
+
+bytes32 internal constant BASE_STRATEGY_STORAGE = bytes32(uint256(keccak256("yearn.base.strategy.storage")) - 1);
+
+
+FACTORY
+Address of the previously deployed Vault factory that the
+
+address public immutable FACTORY;
+
+Functions
+onlyManagement
+Require that the call is coming from the strategies management.
+
+modifier onlyManagement();
+
+onlyKeepers
+Require that the call is coming from either the strategies management or the keeper.
+
+modifier onlyKeepers();
+
+onlyEmergencyAuthorized
+Require that the call is coming from either the strategies management or the emergencyAdmin.
+
+modifier onlyEmergencyAuthorized();
+
+nonReentrant
+Prevents a contract from calling itself, directly or indirectly. Placed over all state changing functions for increased safety.
+
+modifier nonReentrant();
+
+requireManagement
+Require a caller is management.
+
+Is left public so that it can be used by the Strategy. When the Strategy calls this the msg.sender would be the address of the strategy so we need to specify the sender.
+
+function requireManagement(address _sender) public view;
+
+Parameters
+
+Name	Type	Description
+_sender	address	The original msg.sender.
+requireKeeperOrManagement
+Require a caller is the keeper or management.
+
+Is left public so that it can be used by the Strategy. When the Strategy calls this the msg.sender would be the address of the strategy so we need to specify the sender.
+
+function requireKeeperOrManagement(address _sender) public view;
+
+Parameters
+
+Name	Type	Description
+_sender	address	The original msg.sender.
+requireEmergencyAuthorized
+Require a caller is the management or emergencyAdmin.
+
+Is left public so that it can be used by the Strategy. When the Strategy calls this the msg.sender would be the address of the strategy so we need to specify the sender.
+
+function requireEmergencyAuthorized(address _sender) public view;
+
+Parameters
+
+Name	Type	Description
+_sender	address	The original msg.sender.
+_strategyStorage
+will return the actual storage slot where the strategy specific StrategyData struct is stored for both read and write operations. This loads just the slot location, not the full struct so it can be used in a gas efficient manner.
+
+function _strategyStorage() internal pure returns (StrategyData storage S);
+
+initialize
+Used to initialize storage for a newly deployed strategy.
+
+This should be called atomically whenever a new strategy is deployed and can only be called once for each strategy. This will set all the default storage that must be set for a strategy to function. Any changes can be made post deployment through external calls from management. The function will also emit an event that off chain indexers can look for to track any new deployments using this TokenizedStrategy.
+
+function initialize(
+    address _asset,
+    string memory _name,
+    address _management,
+    address _performanceFeeRecipient,
+    address _keeper
+) external;
+
+Parameters
+
+Name	Type	Description
+_asset	address	Address of the underlying asset.
+_name	string	Name the strategy will use.
+_management	address	Address to set as the strategies management.
+_performanceFeeRecipient	address	Address to receive performance fees.
+_keeper	address	Address to set as strategies keeper.
+deposit
+Mints shares of strategy shares to receiver by depositing exactly assets of underlying tokens.
+
+function deposit(uint256 assets, address receiver) external nonReentrant returns (uint256 shares);
+
+
+Parameters
+
+Name	Type	Description
+assets	uint256	The amount of underlying to deposit in.
+receiver	address	The address to receive the shares.
+Returns
+
+Name	Type	Description
+shares	uint256	The actual amount of shares issued.
+mint
+Mints exactly shares of strategy shares to receiver by depositing assets of underlying tokens.
+
+function mint(uint256 shares, address receiver) external nonReentrant returns (uint256 assets);
+
+
+Parameters
+
+Name	Type	Description
+shares	uint256	The amount of strategy shares mint.
+receiver	address	The address to receive the shares.
+Returns
+
+Name	Type	Description
+assets	uint256	The actual amount of asset deposited.
+withdraw
+Withdraws exactly assets from owners shares and sends the underlying tokens to receiver.
+
+This will default to not allowing any loss to be taken.
+
+function withdraw(uint256 assets, address receiver, address owner) external returns (uint256 shares);
+
+
+Parameters
+
+Name	Type	Description
+assets	uint256	The amount of underlying to withdraw.
+receiver	address	The address to receive assets.
+owner	address	The address whose shares are burnt.
+Returns
+
+Name	Type	Description
+shares	uint256	The actual amount of shares burnt.
+withdraw
+Withdraws assets from owners shares and sends the underlying tokens to receiver.
+
+This includes an added parameter to allow for losses.
+
+function withdraw(uint256 assets, address receiver, address owner, uint256 maxLoss)
+    public
+    nonReentrant
+    returns (uint256 shares);
+
+Parameters
+
+Name	Type	Description
+assets	uint256	The amount of underlying to withdraw.
+receiver	address	The address to receive assets.
+owner	address	The address whose shares are burnt.
+maxLoss	uint256	The amount of acceptable loss in Basis points.
+Returns
+
+Name	Type	Description
+shares	uint256	The actual amount of shares burnt.
+redeem
+Redeems exactly shares from owner and sends assets of underlying tokens to receiver.
+
+This will default to allowing any loss passed to be realized.
+
+function redeem(uint256 shares, address receiver, address owner) external returns (uint256);
+
+
+Parameters
+
+Name	Type	Description
+shares	uint256	The amount of shares burnt.
+receiver	address	The address to receive assets.
+owner	address	The address whose shares are burnt.
+Returns
+
+Name	Type	Description
+<none>	uint256	assets The actual amount of underlying withdrawn.
+redeem
+Redeems exactly shares from owner and sends assets of underlying tokens to receiver.
+
+This includes an added parameter to allow for losses.
+
+function redeem(uint256 shares, address receiver, address owner, uint256 maxLoss)
+    public
+    nonReentrant
+    returns (uint256);
+
+Parameters
+
+Name	Type	Description
+shares	uint256	The amount of shares burnt.
+receiver	address	The address to receive assets.
+owner	address	The address whose shares are burnt.
+maxLoss	uint256	The amount of acceptable loss in Basis points.
+Returns
+
+Name	Type	Description
+<none>	uint256	. The actual amount of underlying withdrawn.
+totalAssets
+Get the total amount of assets this strategy holds as of the last report. We manually track totalAssets to avoid any PPS manipulation.
+
+function totalAssets() external view returns (uint256);
+
+Returns
+
+Name	Type	Description
+<none>	uint256	. Total assets the strategy holds.
+totalSupply
+Get the current supply of the strategies shares. Locked shares issued to the strategy from profits are not counted towards the full supply until they are unlocked. As more shares slowly unlock the totalSupply will decrease causing the PPS of the strategy to increase.
+
+function totalSupply() external view returns (uint256);
+
+Returns
+
+Name	Type	Description
+<none>	uint256	. Total amount of shares outstanding.
+convertToShares
+The amount of shares that the strategy would exchange for the amount of assets provided, in an ideal scenario where all the conditions are met.
+
+function convertToShares(uint256 assets) external view returns (uint256);
+
+Parameters
+
+Name	Type	Description
+assets	uint256	The amount of underlying.
+Returns
+
+Name	Type	Description
+<none>	uint256	. Expected shares that assets represents.
+convertToAssets
+The amount of assets that the strategy would exchange for the amount of shares provided, in an ideal scenario where all the conditions are met.
+
+function convertToAssets(uint256 shares) external view returns (uint256);
+
+Parameters
+
+Name	Type	Description
+shares	uint256	The amount of the strategies shares.
+Returns
+
+Name	Type	Description
+<none>	uint256	. Expected amount of asset the shares represents.
+previewDeposit
+Allows an on-chain or off-chain user to simulate the effects of their deposit at the current block, given current on-chain conditions.
+
+This will round down.
+
+function previewDeposit(uint256 assets) external view returns (uint256);
+
+Parameters
+
+Name	Type	Description
+assets	uint256	The amount of asset to deposits.
+Returns
+
+Name	Type	Description
+<none>	uint256	. Expected shares that would be issued.
+previewMint
+Allows an on-chain or off-chain user to simulate the effects of their mint at the current block, given current on-chain conditions.
+
+This is used instead of convertToAssets so that it can round up for safer mints.
+
+function previewMint(uint256 shares) external view returns (uint256);
+
+Parameters
+
+Name	Type	Description
+shares	uint256	The amount of shares to mint.
+Returns
+
+Name	Type	Description
+<none>	uint256	. The needed amount of asset for the mint.
+previewWithdraw
+Allows an on-chain or off-chain user to simulate the effects of their withdrawal at the current block, given current on-chain conditions.
+
+This is used instead of convertToShares so that it can round up for safer withdraws.
+
+function previewWithdraw(uint256 assets) external view returns (uint256);
+
+Parameters
+
+Name	Type	Description
+assets	uint256	The amount of asset that would be withdrawn.
+Returns
+
+Name	Type	Description
+<none>	uint256	. The amount of shares that would be burnt.
+previewRedeem
+Allows an on-chain or off-chain user to simulate the effects of their redemption at the current block, given current on-chain conditions.
+
+This will round down.
+
+function previewRedeem(uint256 shares) external view returns (uint256);
+
+Parameters
+
+Name	Type	Description
+shares	uint256	The amount of shares that would be redeemed.
+Returns
+
+Name	Type	Description
+<none>	uint256	. The amount of asset that would be returned.
+maxDeposit
+Total number of underlying assets that can be deposited into the strategy, where receiver corresponds to the receiver of the shares of a deposit call.
+
+function maxDeposit(address receiver) external view returns (uint256);
+
+Parameters
+
+Name	Type	Description
+receiver	address	The address receiving the shares.
+Returns
+
+Name	Type	Description
+<none>	uint256	. The max that receiver can deposit in asset.
+maxMint
+Total number of shares that can be minted to receiver of a mint call.
+
+function maxMint(address receiver) external view returns (uint256);
+
+Parameters
+
+Name	Type	Description
+receiver	address	The address receiving the shares.
+Returns
+
+Name	Type	Description
+<none>	uint256	_maxMint The max that receiver can mint in shares.
+maxWithdraw
+Total number of underlying assets that can be withdrawn from the strategy by owner, where owner corresponds to the msg.sender of a redeem call.
+
+function maxWithdraw(address owner) external view returns (uint256);
+
+Parameters
+
+Name	Type	Description
+owner	address	The owner of the shares.
+Returns
+
+Name	Type	Description
+<none>	uint256	_maxWithdraw Max amount of asset that can be withdrawn.
+maxWithdraw
+Variable maxLoss is ignored.
+
+Accepts a maxLoss variable in order to match the multi strategy vaults ABI.
+
+function maxWithdraw(address owner, uint256) external view returns (uint256);
+
+maxRedeem
+Total number of strategy shares that can be redeemed from the strategy by owner, where owner corresponds to the msg.sender of a redeem call.
+
+function maxRedeem(address owner) external view returns (uint256);
+
+Parameters
+
+Name	Type	Description
+owner	address	The owner of the shares.
+Returns
+
+Name	Type	Description
+<none>	uint256	_maxRedeem Max amount of shares that can be redeemed.
+maxRedeem
+Variable maxLoss is ignored.
+
+Accepts a maxLoss variable in order to match the multi strategy vaults ABI.
+
+function maxRedeem(address owner, uint256) external view returns (uint256);
+
+_totalAssets
+Internal implementation of totalAssets.
+
+function _totalAssets(StrategyData storage S) internal view returns (uint256);
+
+_totalSupply
+Internal implementation of totalSupply.
+
+function _totalSupply(StrategyData storage S) internal view returns (uint256);
+
+_convertToShares
+Internal implementation of convertToShares.
+
+function _convertToShares(StrategyData storage S, uint256 assets, Math.Rounding _rounding)
+    internal
+    view
+    returns (uint256);
+
+
+_convertToAssets
+Internal implementation of convertToAssets.
+
+function _convertToAssets(StrategyData storage S, uint256 shares, Math.Rounding _rounding)
+    internal
+    view
+    returns (uint256);
+
+
+_maxDeposit
+Internal implementation of maxDeposit.
+
+function _maxDeposit(StrategyData storage S, address receiver) internal view returns (uint256);
+
+
+_maxMint
+Internal implementation of maxMint.
+
+function _maxMint(StrategyData storage S, address receiver) internal view returns (uint256 maxMint_);
+
+
+_maxWithdraw
+Internal implementation of maxWithdraw.
+
+function _maxWithdraw(StrategyData storage S, address owner) internal view returns (uint256 maxWithdraw_);
+
+
+_maxRedeem
+Internal implementation of maxRedeem.
+
+function _maxRedeem(StrategyData storage S, address owner) internal view returns (uint256 maxRedeem_);
+
+
+_deposit
+Function to be called during deposit and mint. This function handles all logic including transfers, minting and accounting. We do all external calls before updating any internal values to prevent view reentrancy issues from the token transfers or the _deployFunds() calls.
+
+function _deposit(StrategyData storage S, address receiver, uint256 assets, uint256 shares) internal;
+
+
+_withdraw
+To be called during redeem and withdraw. This will handle all logic, transfers and accounting in order to service the withdraw request. If we are not able to withdraw the full amount needed, it will be counted as a loss and passed on to the user.
+
+function _withdraw(
+    StrategyData storage S,
+    address receiver,
+    address owner,
+    uint256 assets,
+    uint256 shares,
+    uint256 maxLoss
+) internal returns (uint256);
+
+report
+Function for keepers to call to harvest and record all profits accrued.
+
+This will account for any gains/losses since the last report and charge fees accordingly. Any profit over the fees charged will be immediately locked so there is no change in PricePerShare. Then slowly unlocked over the maxProfitUnlockTime each second based on the calculated profitUnlockingRate. In case of a loss it will first attempt to offset the loss with any remaining locked shares from the last report in order to reduce any negative impact to PPS. Will then recalculate the new time to unlock profits over and the rate based on a weighted average of any remaining time from the last report and the new amount of shares to be locked.
+
+function report() external nonReentrant onlyKeepers returns (uint256 profit, uint256 loss);
+
+
+Returns
+
+Name	Type	Description
+profit	uint256	The notional amount of gain if any since the last report in terms of asset.
+loss	uint256	The notional amount of loss if any since the last report in terms of asset.
+unlockedShares
+Get how many shares have been unlocked since last report.
+
+function unlockedShares() external view returns (uint256);
+
+Returns
+
+Name	Type	Description
+<none>	uint256	. The amount of shares that have unlocked.
+_unlockedShares
+To determine how many of the shares that were locked during the last report have since unlocked. If the fullProfitUnlockDate has passed the full strategy's balance will count as unlocked.
+
+function _unlockedShares(StrategyData storage S) internal view returns (uint256 unlocked);
+
+
+Returns
+
+Name	Type	Description
+unlocked	uint256	The amount of shares that have unlocked.
+tend
+For a 'keeper' to 'tend' the strategy if a custom tendTrigger() is implemented.
+
+Both 'tendTrigger' and '_tend' will need to be overridden for this to be used. This will callback the internal '_tend' call in the BaseStrategy with the total current amount available to the strategy to deploy. This is a permissioned function so if desired it could be used for illiquid or manipulatable strategies to compound rewards, perform maintenance or deposit/withdraw funds. This will not cause any change in PPS. Total assets will be the same before and after. A report() call will be needed to record any profits or losses.
+
+function tend() external nonReentrant onlyKeepers;
+
+shutdownStrategy
+Used to shutdown the strategy preventing any further deposits.
+
+Can only be called by the current management or emergencyAdmin. This will stop any new deposit or mint calls but will not prevent withdraw or redeem. It will also still allow for tend and report so that management can report any last losses in an emergency as well as provide any maintenance to allow for full withdraw. This is a one way switch and can never be set back once shutdown.
+
+function shutdownStrategy() external onlyEmergencyAuthorized;
+
+emergencyWithdraw
+To manually withdraw funds from the yield source after a strategy has been shutdown.
+
+This can only be called post shutdownStrategy. This will never cause a change in PPS. Total assets will be the same before and after. A strategist will need to override the _emergencyWithdraw function in their strategy for this to work.
+
+function emergencyWithdraw(uint256 amount) external nonReentrant onlyEmergencyAuthorized;
+
+Parameters
+
+Name	Type	Description
+amount	uint256	The amount of asset to attempt to free.
+asset
+Get the underlying asset for the strategy.
+
+function asset() external view returns (address);
+
+Returns
+
+Name	Type	Description
+<none>	address	. The underlying asset.
+apiVersion
+Get the API version for this TokenizedStrategy.
+
+function apiVersion() external pure returns (string memory);
+
+Returns
+
+Name	Type	Description
+<none>	string	. The API version for this TokenizedStrategy
+management
+Get the current address that controls the strategy.
+
+function management() external view returns (address);
+
+Returns
+
+Name	Type	Description
+<none>	address	. Address of management
+pendingManagement
+Get the current pending management address if any.
+
+function pendingManagement() external view returns (address);
+
+Returns
+
+Name	Type	Description
+<none>	address	. Address of pendingManagement
+keeper
+Get the current address that can call tend and report.
+
+function keeper() external view returns (address);
+
+Returns
+
+Name	Type	Description
+<none>	address	. Address of the keeper
+emergencyAdmin
+Get the current address that can shutdown and emergency withdraw.
+
+function emergencyAdmin() external view returns (address);
+
+Returns
+
+Name	Type	Description
+<none>	address	. Address of the emergencyAdmin
+performanceFee
+Get the current performance fee charged on profits. denominated in Basis Points where 10_000 == 100%
+
+function performanceFee() external view returns (uint16);
+
+Returns
+
+Name	Type	Description
+<none>	uint16	. Current performance fee.
+performanceFeeRecipient
+Get the current address that receives the performance fees.
+
+function performanceFeeRecipient() external view returns (address);
+
+Returns
+
+Name	Type	Description
+<none>	address	. Address of performanceFeeRecipient
+fullProfitUnlockDate
+Gets the timestamp at which all profits will be unlocked.
+
+function fullProfitUnlockDate() external view returns (uint256);
+
+Returns
+
+Name	Type	Description
+<none>	uint256	. The full profit unlocking timestamp
+profitUnlockingRate
+The per second rate at which profits are unlocking.
+
+This is denominated in EXTENDED_BPS decimals.
+
+function profitUnlockingRate() external view returns (uint256);
+
+Returns
+
+Name	Type	Description
+<none>	uint256	. The current profit unlocking rate.
+profitMaxUnlockTime
+Gets the current time profits are set to unlock over.
+
+function profitMaxUnlockTime() external view returns (uint256);
+
+Returns
+
+Name	Type	Description
+<none>	uint256	. The current profit max unlock time.
+lastReport
+The timestamp of the last time protocol fees were charged.
+
+function lastReport() external view returns (uint256);
+
+Returns
+
+Name	Type	Description
+<none>	uint256	. The last report.
+pricePerShare
+Get the price per share.
+
+This value offers limited precision. Integrations that require exact precision should use convertToAssets or convertToShares instead.
+
+function pricePerShare() external view returns (uint256);
+
+Returns
+
+Name	Type	Description
+<none>	uint256	. The price per share.
+isShutdown
+To check if the strategy has been shutdown.
+
+function isShutdown() external view returns (bool);
+
+Returns
+
+Name	Type	Description
+<none>	bool	. Whether or not the strategy is shutdown.
+setPendingManagement
+Step one of two to set a new address to be in charge of the strategy.
+
+Can only be called by the current management. The address is set to pending management and will then have to call acceptManagement in order for the 'management' to officially change. Cannot set management to address(0).
+
+function setPendingManagement(address _management) external onlyManagement;
+
+Parameters
+
+Name	Type	Description
+_management	address	New address to set pendingManagement to.
+acceptManagement
+Step two of two to set a new 'management' of the strategy.
+
+Can only be called by the current pendingManagement.
+
+function acceptManagement() external;
+
+setKeeper
+Sets a new address to be in charge of tend and reports.
+
+Can only be called by the current management.
+
+function setKeeper(address _keeper) external onlyManagement;
+
+Parameters
+
+Name	Type	Description
+_keeper	address	New address to set keeper to.
+setEmergencyAdmin
+Sets a new address to be able to shutdown the strategy.
+
+Can only be called by the current management.
+
+function setEmergencyAdmin(address _emergencyAdmin) external onlyManagement;
+
+Parameters
+
+Name	Type	Description
+_emergencyAdmin	address	New address to set emergencyAdmin to.
+setPerformanceFee
+Sets the performance fee to be charged on reported gains.
+
+Can only be called by the current management. Denominated in Basis Points. So 100% == 10_000. Cannot set greater than to MAX_FEE.
+
+function setPerformanceFee(uint16 _performanceFee) external onlyManagement;
+
+Parameters
+
+Name	Type	Description
+_performanceFee	uint16	New performance fee.
+setPerformanceFeeRecipient
+Sets a new address to receive performance fees.
+
+Can only be called by the current management. Cannot set to address(0).
+
+function setPerformanceFeeRecipient(address _performanceFeeRecipient) external onlyManagement;
+
+
+Parameters
+
+Name	Type	Description
+_performanceFeeRecipient	address	New address to set management to.
+setProfitMaxUnlockTime
+Sets the time for profits to be unlocked over.
+
+Can only be called by the current management. Denominated in seconds and cannot be greater than 1 year. NOTE: Setting to 0 will cause all currently locked profit to be unlocked instantly and should be done with care. profitMaxUnlockTime is stored as a uint32 for packing but can be passed in as uint256 for simplicity.
+
+function setProfitMaxUnlockTime(uint256 _profitMaxUnlockTime) external onlyManagement;
+
+Parameters
+
+Name	Type	Description
+_profitMaxUnlockTime	uint256	New profitMaxUnlockTime.
+setName
+Updates the name for the strategy.
+
+function setName(string calldata _name) external onlyManagement;
+
+Parameters
+
+Name	Type	Description
+_name	string	The new name for the strategy.
+name
+Returns the name of the token.
+
+function name() external view returns (string memory);
+
+Returns
+
+Name	Type	Description
+<none>	string	. The name the strategy is using for its token.
+symbol
+Returns the symbol of the strategies token.
+
+Will be 'ys + asset symbol'.
+
+function symbol() external view returns (string memory);
+
+Returns
+
+Name	Type	Description
+<none>	string	. The symbol the strategy is using for its tokens.
+decimals
+Returns the number of decimals used to get its user representation.
+
+function decimals() external view returns (uint8);
+
+Returns
+
+Name	Type	Description
+<none>	uint8	. The decimals used for the strategy and asset.
+balanceOf
+Returns the current balance for a given '_account'.
+
+If the '_account` is the strategy then this will subtract the amount of shares that have been unlocked since the last profit first.
+
+function balanceOf(address account) external view returns (uint256);
+
+Parameters
+
+Name	Type	Description
+account	address	the address to return the balance for.
+Returns
+
+Name	Type	Description
+<none>	uint256	. The current balance in y shares of the '_account'.
+_balanceOf
+Internal implementation of balanceOf.
+
+function _balanceOf(StrategyData storage S, address account) internal view returns (uint256);
+
+
+transfer
+Transfer '_amountof shares frommsg.sendertoto`.
+
+Requirements:
+
+to cannot be the zero address.
+to cannot be the address of the strategy.
+the caller must have a balance of at least _amount.*
+function transfer(address to, uint256 amount) external returns (bool);
+
+Parameters
+
+Name	Type	Description
+to	address	The address shares will be transferred to.
+amount	uint256	The amount of shares to be transferred from sender.
+Returns
+
+Name	Type	Description
+<none>	bool	. a boolean value indicating whether the operation succeeded.
+allowance
+Returns the remaining number of tokens that spender will be allowed to spend on behalf of owner through transferFrom. This is zero by default. This value changes when approve or transferFrom are called.
+
+function allowance(address owner, address spender) external view returns (uint256);
+
+Parameters
+
+Name	Type	Description
+owner	address	The address who owns the shares.
+spender	address	The address who would be moving the owners shares.
+Returns
+
+Name	Type	Description
+<none>	uint256	. The remaining amount of shares of owner that could be moved by spender.
+_allowance
+Internal implementation of allowance.
+
+function _allowance(StrategyData storage S, address owner, address spender) internal view returns (uint256);
+
+
+approve
+Sets amount as the allowance of spender over the caller's tokens.
+
+NOTE: If amount is the maximum uint256, the allowance is not updated on transferFrom. This is semantically equivalent to an infinite approval. Requirements:
+
+spender cannot be the zero address. IMPORTANT: Beware that changing an allowance with this method brings the risk that someone may use both the old and the new allowance by unfortunate transaction ordering. One possible solution to mitigate this race condition is to first reduce the spender's allowance to 0 and set the desired value afterwards: https://github.com/ethereum/EIPs/issues/20#issuecomment-263524729 Emits an Approval event.*
+function approve(address spender, uint256 amount) external returns (bool);
+
+Parameters
+
+Name	Type	Description
+spender	address	the address to allow the shares to be moved by.
+amount	uint256	the amount of shares to allow spender to move.
+Returns
+
+Name	Type	Description
+<none>	bool	. a boolean value indicating whether the operation succeeded.
+transferFrom
+amount tokens from from to to using the allowance mechanism. amount is then deducted from the caller's allowance.
+
+Emits an Approval event indicating the updated allowance. This is not required by the EIP. NOTE: Does not update the allowance if the current allowance is the maximum uint256. Requirements:
+
+from and to cannot be the zero address.
+to cannot be the address of the strategy.
+from must have a balance of at least amount.
+the caller must have allowance for from's tokens of at least amount. Emits a Transfer event.*
+function transferFrom(address from, address to, uint256 amount) external returns (bool);
+
+Parameters
+
+Name	Type	Description
+from	address	the address to be moving shares from.
+to	address	the address to be moving shares to.
+amount	uint256	the quantity of shares to move.
+Returns
+
+Name	Type	Description
+<none>	bool	. a boolean value indicating whether the operation succeeded.
+_transfer
+*Moves amount of tokens from from to to. This internal function is equivalent to transfer, and can be used to e.g. implement automatic token fees, slashing mechanisms, etc. Emits a Transfer event. Requirements:
+
+from cannot be the zero address.
+to cannot be the zero address.
+to cannot be the strategies address
+from must have a balance of at least amount.*
+function _transfer(StrategyData storage S, address from, address to, uint256 amount) internal;
+
+
+_mint
+*Creates amount tokens and assigns them to account, increasing the total supply. Emits a Transfer event with from set to the zero address. Requirements:
+
+account cannot be the zero address.*
+function _mint(StrategyData storage S, address account, uint256 amount) internal;
+
+_burn
+*Destroys amount tokens from account, reducing the total supply. Emits a Transfer event with to set to the zero address. Requirements:
+
+account cannot be the zero address.
+account must have at least amount tokens.*
+function _burn(StrategyData storage S, address account, uint256 amount) internal;
+
+_approve
+*Sets amount as the allowance of spender over the owner s tokens. This internal function is equivalent to approve, and can be used to e.g. set automatic allowances for certain subsystems, etc. Emits an Approval event. Requirements:
+
+owner cannot be the zero address.
+spender cannot be the zero address.*
+function _approve(StrategyData storage S, address owner, address spender, uint256 amount) internal;
+
+
+_spendAllowance
+Updates owner s allowance for spender based on spent amount. Does not update the allowance amount in case of infinite allowance. Revert if not enough allowance is available. Might emit an Approval event.
+
+function _spendAllowance(StrategyData storage S, address owner, address spender, uint256 amount) internal;
+
+
+nonces
+Returns the current nonce for owner. This value must be included whenever a signature is generated for permit.
+
+Every successful call to permit increases owner's nonce by one. This prevents a signature from being used multiple times.
+
+function nonces(address _owner) external view returns (uint256);
+
+Parameters
+
+Name	Type	Description
+_owner	address	the address of the account to return the nonce for.
+Returns
+
+Name	Type	Description
+<none>	uint256	. the current nonce for the account.
+permit
+Sets value as the allowance of spender over owner's tokens, given owner's signed approval.
+
+*IMPORTANT: The same issues IERC20-approve has related to transaction ordering also apply here. Emits an Approval event. Requirements:
+
+spender cannot be the zero address.
+deadline must be a timestamp in the future.
+v, r and s must be a valid secp256k1 signature from owner over the EIP712-formatted function arguments.
+the signature must use owner's current nonce (see nonces). For more information on the signature format, see the https://eips.ethereum.org/EIPS/eip-2612#specification[relevant EIP section].*
+function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
+    external;
+
+
+DOMAIN_SEPARATOR
+Returns the domain separator used in the encoding of the signature for permit, as defined by EIP712.
+
+function DOMAIN_SEPARATOR() public view returns (bytes32);
+
+Returns
+
+Name	Type	Description
+<none>	bytes32	. The domain separator that will be used for any permit calls.
+constructor
+On contract creation we set asset for this contract to address(1). This prevents it from ever being initialized in the future.
+
+constructor(address _factory);
+
+Parameters
+
+Name	Type	Description
+_factory	address	Address of the factory of the same version for protocol fees.
+Events
+StrategyShutdown
+Emitted when a strategy is shutdown.
+
+event StrategyShutdown();
+
+NewTokenizedStrategy
+Emitted on the initialization of any new strategy that uses asset with this specific apiVersion.
+
+event NewTokenizedStrategy(address indexed strategy, address indexed asset, string apiVersion);
+
+
+Reported
+Emitted when the strategy reports profit or loss and performanceFees and protocolFees are paid out.
+
+event Reported(uint256 profit, uint256 loss, uint256 protocolFees, uint256 performanceFees);
+
+
+UpdatePerformanceFeeRecipient
+Emitted when the 'performanceFeeRecipient' address is updated to 'newPerformanceFeeRecipient'.
+
+event UpdatePerformanceFeeRecipient(address indexed newPerformanceFeeRecipient);
+
+UpdateKeeper
+Emitted when the 'keeper' address is updated to 'newKeeper'.
+
+event UpdateKeeper(address indexed newKeeper);
+
+UpdatePerformanceFee
+Emitted when the 'performanceFee' is updated to 'newPerformanceFee'.
+
+event UpdatePerformanceFee(uint16 newPerformanceFee);
+
+UpdateManagement
+Emitted when the 'management' address is updated to 'newManagement'.
+
+event UpdateManagement(address indexed newManagement);
+
+UpdateEmergencyAdmin
+Emitted when the 'emergencyAdmin' address is updated to 'newEmergencyAdmin'.
+
+event UpdateEmergencyAdmin(address indexed newEmergencyAdmin);
+
+UpdateProfitMaxUnlockTime
+Emitted when the 'profitMaxUnlockTime' is updated to 'newProfitMaxUnlockTime'.
+
+event UpdateProfitMaxUnlockTime(uint256 newProfitMaxUnlockTime);
+
+UpdatePendingManagement
+Emitted when the 'pendingManagement' address is updated to 'newPendingManagement'.
+
+event UpdatePendingManagement(address indexed newPendingManagement);
+
+Approval
+Emitted when the allowance of a spender for an owner is set by a call to approve. value is the new allowance.
+
+event Approval(address indexed owner, address indexed spender, uint256 value);
+
+Transfer
+Emitted when value tokens are moved from one account (from) to another (to). Note that value may be zero.
+
+event Transfer(address indexed from, address indexed to, uint256 value);
+
+Deposit
+Emitted when the caller has exchanged assets for shares, and transferred those shares to owner.
+
+event Deposit(address indexed caller, address indexed owner, uint256 assets, uint256 shares);
+
+
+Withdraw
+Emitted when the caller has exchanged owners shares for assets, and transferred those assets to receiver.
+
+event Withdraw(address indexed caller, address indexed receiver, address indexed owner, uint256 assets, uint256 shares);
+
+
+Structs
+StrategyData
+The struct that will hold all the storage data for each strategy that uses this implementation. This replaces all state variables for a traditional contract. This full struct will be initialized on the creation of the strategy and continually updated and read from for the life of the contract. We combine all the variables into one struct to limit the amount of times the custom storage slots need to be loaded during complex functions. Loading the corresponding storage slot for the struct does not load any of the contents of the struct into memory. So the size will not increase memory related gas usage.
+
+struct StrategyData {
+    ERC20 asset;
+    uint8 decimals;
+    string name;
+    uint256 totalSupply;
+    mapping(address => uint256) nonces;
+    mapping(address => uint256) balances;
+    mapping(address => mapping(address => uint256)) allowances;
+    uint256 totalAssets;
+    uint256 profitUnlockingRate;
+    uint96 fullProfitUnlockDate;
+    address keeper;
+    uint32 profitMaxUnlockTime;
+    uint16 performanceFee;
+    address performanceFeeRecipient;
+    uint96 lastReport;
+    address management;
+    address pendingManagement;
+    address emergencyAdmin;
+    uint8 entered;
+    bool shutdown;
+}
+
+VaultFactory.vy
+vyper: 0.3.7 author: yearn.finance license: GNU AGPLv3
+
+Yearn Vault Factory**
+This vault Factory can be used by anyone wishing to deploy their own ERC4626 compliant Yearn V3 Vault of the same API version. The factory clones new vaults from its specific VAULT_ORIGINAL immutable address set on creation of the factory. The deployments are done through create2 with a specific salt that is derived from a combination of the deployer's address, the underlying asset used, as well as the name and symbol specified. Meaning a deployer will not be able to deploy the exact same vault twice and will need to use different name and or symbols for vaults that use the same other parameters such as asset. The factory also holds the protocol fee configs for each vault and strategy of its specific API_VERSION that determine how much of the fees charged are designated "protocol fees" and sent to the designated fee_recipient. The protocol fees work through a revenue share system, where if the vault or strategy decides to charge X amount of total fees during a report the protocol fees are a percent of X. The protocol fees will be sent to the designated fee_recipient and then (X - protocol_fees) will be sent to the vault/strategy specific fee recipient.
+
+Functions
+deploy_new_vault
+Deploys a new clone of the original vault.
+
+function deploy_new_vault(address,string,string,address,uint256)
+
+Parameters
+Name	Type	Description
+asset	address	The asset to be used for the vault.
+name	string	The name of the new vault.
+symbol	string	The symbol of the new vault.
+role_manager	address	The address of the role manager.
+profit_max_unlock_time	uint256	The time over which the profits will unlock.
+Return Values
+Name	Type	Description
+_output0	address	The address of the new vault.
+vault_original
+Get the address of the vault to clone from
+
+function vault_original()
+
+Return Values
+Name	Type	Description
+_output0	address	The address of the original vault.
+apiVersion
+Get the API version of the factory.
+
+function apiVersion()
+
+Return Values
+Name	Type	Description
+_output0	string	The API version of the factory.
+protocol_fee_config
+Called during vault and strategy reports to retrieve the protocol fee to charge and address to receive the fees.
+
+function protocol_fee_config()
+
+Parameters
+Name	Type	Description
+vault	unknown	Address of the vault that would be reporting.
+Return Values
+Name	Type	Description
+_output0	uint16	Fee in bps
+| _output1 | address | Address of fee recipient |
+
+protocol_fee_config
+function protocol_fee_config(address)
+
+Parameters
+Name	Type	Description
+vault	address	Address of the vault that would be reporting.
+Return Values
+Name	Type	Description
+_output0	uint16	Fee in bps
+| _output1 | address | Address of fee recipient |
+
+use_custom_protocol_fee
+If a custom protocol fee is used for a vault.
+
+function use_custom_protocol_fee(address)
+
+Parameters
+Name	Type	Description
+vault	address	Address of the vault to check.
+Return Values
+Name	Type	Description
+_output0	bool	If a custom protocol fee is used.
+set_protocol_fee_bps
+Set the protocol fee in basis points
+
+Must be below the max allowed fee, and a default fee_recipient must be set so we don't issue fees to the 0 address.
+
+function set_protocol_fee_bps(uint16)
+
+Parameters
+Name	Type	Description
+new_protocol_fee_bps	uint16	The new protocol fee in basis points
+set_protocol_fee_recipient
+Set the protocol fee recipient
+
+Can never be set to 0 to avoid issuing fees to the 0 address.
+
+function set_protocol_fee_recipient(address)
+
+Parameters
+Name	Type	Description
+new_protocol_fee_recipient	address	The new protocol fee recipient
+set_custom_protocol_fee_bps
+Allows Governance to set custom protocol fees for a specific vault or strategy.
+
+Must be below the max allowed fee, and a default fee_recipient must be set so we don't issue fees to the 0 address.
+
+function set_custom_protocol_fee_bps(address,uint16)
+
+Parameters
+Name	Type	Description
+vault	address	The address of the vault or strategy to customize.
+new_custom_protocol_fee	uint16	The custom protocol fee in BPS.
+remove_custom_protocol_fee
+Allows governance to remove a previously set custom protocol fee.
+
+function remove_custom_protocol_fee(address)
+
+Parameters
+Name	Type	Description
+vault	address	The address of the vault or strategy to remove the custom fee for.
+shutdown_factory
+To stop new deployments through this factory.
+
+A one time switch available for governance to stop new vaults from being deployed through the factory. NOTE: This will have no effect on any previously deployed vaults that deployed from this factory.
+
+function shutdown_factory()
+
+transferGovernance
+Set the governance address
+
+function transferGovernance(address)
+
+Parameters
+Name	Type	Description
+new_governance	address	The new governance address
+acceptGovernance
+Accept the governance address
+
+function acceptGovernance()
+
+Events
+NewVault
+Name	Type	Indexed?
+vault_address	address	Yes
+asset	address	Yes
+UpdateProtocolFeeBps
+Name	Type	Indexed?
+old_fee_bps	uint16	No
+new_fee_bps	uint16	No
+UpdateProtocolFeeRecipient
+Name	Type	Indexed?
+old_fee_recipient	address	Yes
+new_fee_recipient	address	Yes
+UpdateCustomProtocolFee
+Name	Type	Indexed?
+vault	address	Yes
+new_custom_protocol_fee	uint16	No
+RemovedCustomProtocolFee
+Name	Type	Indexed?
+vault	address	Yes
+FactoryShutdown
+Name	Type	Indexed?
+GovernanceTransferred
+Name	Type	Indexed?
+previousGovernance	address	Yes
+newGovernance	address	Yes
+UpdatePendingGovernance
+Name	Type	Indexed?
+newPendingGovernance	address	Yes
+
+VaultV3.vy
+vyper: 0.3.7 author: yearn.finance license: GNU AGPLv3
+
+Yearn V3 Vault**
+The Yearn VaultV3 is designed as a non-opinionated system to distribute funds of depositors for a specific asset into different opportunities (aka Strategies) and manage accounting in a robust way. Depositors receive shares (aka vaults tokens) proportional to their deposit amount. Vault tokens are yield-bearing and can be redeemed at any time to get back deposit plus any yield generated. Addresses that are given different permissioned roles by the role_manager are then able to allocate funds as they best see fit to different strategies and adjust the strategies and allocations as needed, as well as reporting realized profits or losses. Strategies are any ERC-4626 compliant contracts that use the same underlying asset as the vault. The vault provides no assurances as to the safety of any strategy and it is the responsibility of those that hold the corresponding roles to choose and fund strategies that best fit their desired specifications. Those holding vault tokens are able to redeem the tokens for the corresponding amount of underlying asset based on any reported profits or losses since their initial deposit. The vault is built to be customized by the management to be able to fit their specific desired needs. Including the customization of strategies, accountants, ownership etc.
+
+Functions
+initialize
+Initialize a new vault. Sets the asset, name, symbol, and role manager.
+
+function initialize(address,string,string,address,uint256)
+
+Parameters
+Name	Type	Description
+asset	address	The address of the asset that the vault will accept.
+name	string	The name of the vault token.
+symbol	string	The symbol of the vault token.
+role_manager	address	The address that can add and remove roles to addresses
+profit_max_unlock_time	uint256	The amount of time that the profit will be locked for
+setName
+Change the vault name.
+
+Can only be called by the Role Manager.
+
+function setName(string)
+
+Parameters
+Name	Type	Description
+name	string	The new name for the vault.
+setSymbol
+Change the vault symbol.
+
+Can only be called by the Role Manager.
+
+function setSymbol(string)
+
+Parameters
+Name	Type	Description
+symbol	string	The new name for the vault.
+set_accountant
+Set the new accountant address.
+
+function set_accountant(address)
+
+Parameters
+Name	Type	Description
+new_accountant	address	The new accountant address.
+set_default_queue
+Set the new default queue array.
+
+Will check each strategy to make sure it is active. But will not check that the same strategy is not added twice. maxRedeem and maxWithdraw return values may be inaccurate if a strategy is added twice.
+
+function set_default_queue(address[])
+
+Parameters
+Name	Type	Description
+new_default_queue	address[]	The new default queue array.
+set_use_default_queue
+Set a new value for use_default_queue.
+
+If set True the default queue will always be used no matter whats passed in.
+
+function set_use_default_queue(bool)
+
+Parameters
+Name	Type	Description
+use_default_queue	bool	new value.
+set_auto_allocate
+Set new value for auto_allocate
+
+If True every deposit and mint call will try and allocate the deposited amount to the strategy at position 0 of the default_queue atomically. NOTE: An empty default_queue will cause deposits to fail.
+
+function set_auto_allocate(bool)
+
+Parameters
+Name	Type	Description
+auto_allocate	bool	new value.
+set_deposit_limit
+Set the new deposit limit.
+
+Can not be changed if a deposit_limit_module is set unless the override flag is true or if shutdown.
+
+function set_deposit_limit(uint256)
+
+Parameters
+Name	Type	Description
+deposit_limit	uint256	The new deposit limit.
+override	unknown	If a deposit_limit_module already set should be overridden.
+set_deposit_limit
+Can not be changed if a deposit_limit_module is set unless the override flag is true or if shutdown.
+
+function set_deposit_limit(uint256,bool)
+
+Parameters
+Name	Type	Description
+deposit_limit	uint256	The new deposit limit.
+override	bool	If a deposit_limit_module already set should be overridden.
+set_deposit_limit_module
+Set a contract to handle the deposit limit.
+
+The default deposit_limit will need to be set to max uint256 since the module will override it or the override flag must be set to true to set it to max in 1 tx..
+
+function set_deposit_limit_module(address)
+
+Parameters
+Name	Type	Description
+deposit_limit_module	address	Address of the module.
+override	unknown	If a deposit_limit already set should be overridden.
+set_deposit_limit_module
+The default deposit_limit will need to be set to max uint256 since the module will override it or the override flag must be set to true to set it to max in 1 tx..
+
+function set_deposit_limit_module(address,bool)
+
+Parameters
+Name	Type	Description
+deposit_limit_module	address	Address of the module.
+override	bool	If a deposit_limit already set should be overridden.
+set_withdraw_limit_module
+Set a contract to handle the withdraw limit.
+
+This will override the default max_withdraw.
+
+function set_withdraw_limit_module(address)
+
+Parameters
+Name	Type	Description
+withdraw_limit_module	address	Address of the module.
+set_minimum_total_idle
+Set the new minimum total idle.
+
+function set_minimum_total_idle(uint256)
+
+Parameters
+Name	Type	Description
+minimum_total_idle	uint256	The new minimum total idle.
+setProfitMaxUnlockTime
+Set the new profit max unlock time.
+
+The time is denominated in seconds and must be less than 1 year. We only need to update locking period if setting to 0, since the current period will use the old rate and on the next report it will be reset with the new unlocking time. Setting to 0 will cause any currently locked profit to instantly unlock and an immediate increase in the vaults Price Per Share.
+
+function setProfitMaxUnlockTime(uint256)
+
+Parameters
+Name	Type	Description
+new_profit_max_unlock_time	uint256	The new profit max unlock time.
+set_role
+Set the roles for an account.
+
+This will fully override an accounts current roles so it should include all roles the account should hold.
+
+function set_role(address,uint256)
+
+Parameters
+Name	Type	Description
+account	address	The account to set the role for.
+role	uint256	The roles the account should hold.
+add_role
+Add a new role/s to an address.
+
+This will add a new role/s to the account without effecting any of the previously held roles.
+
+function add_role(address,uint256)
+
+Parameters
+Name	Type	Description
+account	address	The account to add a role to.
+role	uint256	The new role/s to add to account.
+remove_role
+Remove a role/s from an account.
+
+This will leave all other roles for the account unchanged.
+
+function remove_role(address,uint256)
+
+Parameters
+Name	Type	Description
+account	address	The account to remove a Role/s from.
+role	uint256	The Role/s to remove.
+transfer_role_manager
+Step 1 of 2 in order to transfer the role manager to a new address. This will set the future_role_manager. Which will then need to be accepted by the new manager.
+
+function transfer_role_manager(address)
+
+Parameters
+Name	Type	Description
+role_manager	address	The new role manager address.
+isShutdown
+Get if the vault is shutdown.
+
+function isShutdown()
+
+Return Values
+Name	Type	Description
+_output0	bool	Bool representing the shutdown status
+unlockedShares
+Get the amount of shares that have been unlocked.
+
+function unlockedShares()
+
+Return Values
+Name	Type	Description
+_output0	uint256	The amount of shares that are have been unlocked.
+pricePerShare
+Get the price per share (pps) of the vault.
+
+This value offers limited precision. Integrations that require exact precision should use convertToAssets or convertToShares instead.
+
+function pricePerShare()
+
+Return Values
+Name	Type	Description
+_output0	uint256	The price per share.
+get_default_queue
+Get the full default queue currently set.
+
+function get_default_queue()
+
+Return Values
+Name	Type	Description
+_output0	address[]	The current default withdrawal queue.
+process_report
+Process the report of a strategy.
+
+function process_report(address)
+
+Parameters
+Name	Type	Description
+strategy	address	The strategy to process the report for.
+Return Values
+Name	Type	Description
+_output0	uint256	The gain and loss of the strategy.
+| _output1 | uint256 | |
+
+buy_debt
+Used for governance to buy bad debt from the vault.
+
+This should only ever be used in an emergency in place of force revoking a strategy in order to not report a loss. It allows the DEBT_PURCHASER role to buy the strategies debt for an equal amount of asset.
+
+function buy_debt(address,uint256)
+
+Parameters
+Name	Type	Description
+strategy	address	The strategy to buy the debt for
+amount	uint256	The amount of debt to buy from the vault.
+add_strategy
+Add a new strategy.
+
+function add_strategy(address)
+
+Parameters
+Name	Type	Description
+new_strategy	address	The new strategy to add.
+add_strategy
+function add_strategy(address,bool)
+
+Parameters
+Name	Type	Description
+new_strategy	address	The new strategy to add.
+revoke_strategy
+Revoke a strategy.
+
+function revoke_strategy(address)
+
+Parameters
+Name	Type	Description
+strategy	address	The strategy to revoke.
+force_revoke_strategy
+Force revoke a strategy.
+
+The vault will remove the strategy and write off any debt left in it as a loss. This function is a dangerous function as it can force a strategy to take a loss. All possible assets should be removed from the strategy first via update_debt. If a strategy is removed erroneously it can be re-added and the loss will be credited as profit. Fees will apply.
+
+function force_revoke_strategy(address)
+
+Parameters
+Name	Type	Description
+strategy	address	The strategy to force revoke.
+update_max_debt_for_strategy
+Update the max debt for a strategy.
+
+function update_max_debt_for_strategy(address,uint256)
+
+Parameters
+Name	Type	Description
+strategy	address	The strategy to update the max debt for.
+new_max_debt	uint256	The new max debt for the strategy.
+update_debt
+Update the debt for a strategy.
+
+Pass max uint256 to allocate as much idle as possible.
+
+function update_debt(address,uint256)
+
+Parameters
+Name	Type	Description
+strategy	address	The strategy to update the debt for.
+target_debt	uint256	The target debt for the strategy.
+max_loss	unknown	Optional to check realized losses on debt decreases.
+Return Values
+Name	Type	Description
+_output0	uint256	The new current debt of the strategy.
+update_debt
+Pass max uint256 to allocate as much idle as possible.
+
+function update_debt(address,uint256,uint256)
+
+Parameters
+Name	Type	Description
+strategy	address	The strategy to update the debt for.
+target_debt	uint256	The target debt for the strategy.
+max_loss	uint256	Optional to check realized losses on debt decreases.
+Return Values
+Name	Type	Description
+_output0	uint256	The new current debt of the strategy.
+deposit
+Deposit assets into the vault.
+
+Pass max uint256 to deposit full asset balance.
+
+function deposit(uint256,address)
+
+Parameters
+Name	Type	Description
+assets	uint256	The amount of assets to deposit.
+receiver	address	The address to receive the shares.
+Return Values
+Name	Type	Description
+_output0	uint256	The amount of shares minted.
+mint
+Mint shares for the receiver.
+
+function mint(uint256,address)
+
+Parameters
+Name	Type	Description
+shares	uint256	The amount of shares to mint.
+receiver	address	The address to receive the shares.
+Return Values
+Name	Type	Description
+_output0	uint256	The amount of assets deposited.
+withdraw
+Withdraw an amount of asset to receiver burning owners shares.
+
+The default behavior is to not allow any loss.
+
+function withdraw(uint256,address,address)
+
+Parameters
+Name	Type	Description
+assets	uint256	The amount of asset to withdraw.
+receiver	address	The address to receive the assets.
+owner	address	The address who's shares are being burnt.
+max_loss	unknown	Optional amount of acceptable loss in Basis Points.
+strategies	unknown	Optional array of strategies to withdraw from.
+Return Values
+Name	Type	Description
+_output0	uint256	The amount of shares actually burnt.
+withdraw
+The default behavior is to not allow any loss.
+
+function withdraw(uint256,address,address,uint256)
+
+Parameters
+Name	Type	Description
+assets	uint256	The amount of asset to withdraw.
+receiver	address	The address to receive the assets.
+owner	address	The address who's shares are being burnt.
+max_loss	uint256	Optional amount of acceptable loss in Basis Points.
+strategies	unknown	Optional array of strategies to withdraw from.
+Return Values
+Name	Type	Description
+_output0	uint256	The amount of shares actually burnt.
+withdraw
+The default behavior is to not allow any loss.
+
+function withdraw(uint256,address,address,uint256,address[])
+
+Parameters
+Name	Type	Description
+assets	uint256	The amount of asset to withdraw.
+receiver	address	The address to receive the assets.
+owner	address	The address who's shares are being burnt.
+max_loss	uint256	Optional amount of acceptable loss in Basis Points.
+strategies	address[]	Optional array of strategies to withdraw from.
+Return Values
+Name	Type	Description
+_output0	uint256	The amount of shares actually burnt.
+redeem
+Redeems an amount of shares of owners shares sending funds to receiver.
+
+The default behavior is to allow losses to be realized.
+
+function redeem(uint256,address,address)
+
+Parameters
+Name	Type	Description
+shares	uint256	The amount of shares to burn.
+receiver	address	The address to receive the assets.
+owner	address	The address who's shares are being burnt.
+max_loss	unknown	Optional amount of acceptable loss in Basis Points.
+strategies	unknown	Optional array of strategies to withdraw from.
+Return Values
+Name	Type	Description
+_output0	uint256	The amount of assets actually withdrawn.
+redeem
+The default behavior is to allow losses to be realized.
+
+function redeem(uint256,address,address,uint256)
+
+Parameters
+Name	Type	Description
+shares	uint256	The amount of shares to burn.
+receiver	address	The address to receive the assets.
+owner	address	The address who's shares are being burnt.
+max_loss	uint256	Optional amount of acceptable loss in Basis Points.
+strategies	unknown	Optional array of strategies to withdraw from.
+Return Values
+Name	Type	Description
+_output0	uint256	The amount of assets actually withdrawn.
+redeem
+The default behavior is to allow losses to be realized.
+
+function redeem(uint256,address,address,uint256,address[])
+
+Parameters
+Name	Type	Description
+shares	uint256	The amount of shares to burn.
+receiver	address	The address to receive the assets.
+owner	address	The address who's shares are being burnt.
+max_loss	uint256	Optional amount of acceptable loss in Basis Points.
+strategies	address[]	Optional array of strategies to withdraw from.
+Return Values
+Name	Type	Description
+_output0	uint256	The amount of assets actually withdrawn.
+approve
+Approve an address to spend the vault's shares.
+
+function approve(address,uint256)
+
+Parameters
+Name	Type	Description
+spender	address	The address to approve.
+amount	uint256	The amount of shares to approve.
+Return Values
+Name	Type	Description
+_output0	bool	True if the approval was successful.
+transfer
+Transfer shares to a receiver.
+
+function transfer(address,uint256)
+
+Parameters
+Name	Type	Description
+receiver	address	The address to transfer shares to.
+amount	uint256	The amount of shares to transfer.
+Return Values
+Name	Type	Description
+_output0	bool	True if the transfer was successful.
+transferFrom
+Transfer shares from a sender to a receiver.
+
+function transferFrom(address,address,uint256)
+
+Parameters
+Name	Type	Description
+sender	address	The address to transfer shares from.
+receiver	address	The address to transfer shares to.
+amount	uint256	The amount of shares to transfer.
+Return Values
+Name	Type	Description
+_output0	bool	True if the transfer was successful.
+permit
+Approve an address to spend the vault's shares.
+
+function permit(address,address,uint256,uint256,uint8,bytes32,bytes32)
+
+Parameters
+Name	Type	Description
+owner	address	The address to approve.
+spender	address	The address to approve.
+amount	uint256	The amount of shares to approve.
+deadline	uint256	The deadline for the permit.
+v	uint8	The v component of the signature.
+r	bytes32	The r component of the signature.
+s	bytes32	The s component of the signature.
+Return Values
+Name	Type	Description
+_output0	bool	True if the approval was successful.
+balanceOf
+Get the balance of a user.
+
+function balanceOf(address)
+
+Parameters
+Name	Type	Description
+addr	address	The address to get the balance of.
+Return Values
+Name	Type	Description
+_output0	uint256	The balance of the user.
+totalSupply
+Get the total supply of shares.
+
+function totalSupply()
+
+Return Values
+Name	Type	Description
+_output0	uint256	The total supply of shares.
+totalAssets
+Get the total assets held by the vault.
+
+function totalAssets()
+
+Return Values
+Name	Type	Description
+_output0	uint256	The total assets held by the vault.
+totalIdle
+Get the amount of loose asset the vault holds.
+
+function totalIdle()
+
+Return Values
+Name	Type	Description
+_output0	uint256	The current total idle.
+totalDebt
+Get the total amount of funds invested across all strategies.
+
+function totalDebt()
+
+Return Values
+Name	Type	Description
+_output0	uint256	The current total debt.
+convertToShares
+Convert an amount of assets to shares.
+
+function convertToShares(uint256)
+
+Parameters
+Name	Type	Description
+assets	uint256	The amount of assets to convert.
+Return Values
+Name	Type	Description
+_output0	uint256	The amount of shares.
+previewDeposit
+Preview the amount of shares that would be minted for a deposit.
+
+function previewDeposit(uint256)
+
+Parameters
+Name	Type	Description
+assets	uint256	The amount of assets to deposit.
+Return Values
+Name	Type	Description
+_output0	uint256	The amount of shares that would be minted.
+previewMint
+Preview the amount of assets that would be deposited for a mint.
+
+function previewMint(uint256)
+
+Parameters
+Name	Type	Description
+shares	uint256	The amount of shares to mint.
+Return Values
+Name	Type	Description
+_output0	uint256	The amount of assets that would be deposited.
+convertToAssets
+Convert an amount of shares to assets.
+
+function convertToAssets(uint256)
+
+Parameters
+Name	Type	Description
+shares	uint256	The amount of shares to convert.
+Return Values
+Name	Type	Description
+_output0	uint256	The amount of assets.
+maxDeposit
+Get the maximum amount of assets that can be deposited.
+
+function maxDeposit(address)
+
+Parameters
+Name	Type	Description
+receiver	address	The address that will receive the shares.
+Return Values
+Name	Type	Description
+_output0	uint256	The maximum amount of assets that can be deposited.
+maxMint
+Get the maximum amount of shares that can be minted.
+
+function maxMint(address)
+
+Parameters
+Name	Type	Description
+receiver	address	The address that will receive the shares.
+Return Values
+Name	Type	Description
+_output0	uint256	The maximum amount of shares that can be minted.
+maxWithdraw
+Get the maximum amount of assets that can be withdrawn.
+
+Complies to normal 4626 interface and takes custom params. NOTE: Passing in a incorrectly ordered queue may result in incorrect returns values.
+
+function maxWithdraw(address)
+
+Parameters
+Name	Type	Description
+owner	address	The address that owns the shares.
+max_loss	unknown	Custom max_loss if any.
+strategies	unknown	Custom strategies queue if any.
+Return Values
+Name	Type	Description
+_output0	uint256	The maximum amount of assets that can be withdrawn.
+maxWithdraw
+Complies to normal 4626 interface and takes custom params. NOTE: Passing in a incorrectly ordered queue may result in incorrect returns values.
+
+function maxWithdraw(address,uint256)
+
+Parameters
+Name	Type	Description
+owner	address	The address that owns the shares.
+max_loss	uint256	Custom max_loss if any.
+strategies	unknown	Custom strategies queue if any.
+Return Values
+Name	Type	Description
+_output0	uint256	The maximum amount of assets that can be withdrawn.
+maxWithdraw
+Complies to normal 4626 interface and takes custom params. NOTE: Passing in a incorrectly ordered queue may result in incorrect returns values.
+
+function maxWithdraw(address,uint256,address[])
+
+Parameters
+Name	Type	Description
+owner	address	The address that owns the shares.
+max_loss	uint256	Custom max_loss if any.
+strategies	address[]	Custom strategies queue if any.
+Return Values
+Name	Type	Description
+_output0	uint256	The maximum amount of assets that can be withdrawn.
+maxRedeem
+Get the maximum amount of shares that can be redeemed.
+
+Complies to normal 4626 interface and takes custom params. NOTE: Passing in a incorrectly ordered queue may result in incorrect returns values.
+
+function maxRedeem(address)
+
+Parameters
+Name	Type	Description
+owner	address	The address that owns the shares.
+max_loss	unknown	Custom max_loss if any.
+strategies	unknown	Custom strategies queue if any.
+Return Values
+Name	Type	Description
+_output0	uint256	The maximum amount of shares that can be redeemed.
+maxRedeem
+Complies to normal 4626 interface and takes custom params. NOTE: Passing in a incorrectly ordered queue may result in incorrect returns values.
+
+function maxRedeem(address,uint256)
+
+Parameters
+Name	Type	Description
+owner	address	The address that owns the shares.
+max_loss	uint256	Custom max_loss if any.
+strategies	unknown	Custom strategies queue if any.
+Return Values
+Name	Type	Description
+_output0	uint256	The maximum amount of shares that can be redeemed.
+maxRedeem
+Complies to normal 4626 interface and takes custom params. NOTE: Passing in a incorrectly ordered queue may result in incorrect returns values.
+
+function maxRedeem(address,uint256,address[])
+
+Parameters
+Name	Type	Description
+owner	address	The address that owns the shares.
+max_loss	uint256	Custom max_loss if any.
+strategies	address[]	Custom strategies queue if any.
+Return Values
+Name	Type	Description
+_output0	uint256	The maximum amount of shares that can be redeemed.
+previewWithdraw
+Preview the amount of shares that would be redeemed for a withdraw.
+
+function previewWithdraw(uint256)
+
+Parameters
+Name	Type	Description
+assets	uint256	The amount of assets to withdraw.
+Return Values
+Name	Type	Description
+_output0	uint256	The amount of shares that would be redeemed.
+previewRedeem
+Preview the amount of assets that would be withdrawn for a redeem.
+
+function previewRedeem(uint256)
+
+Parameters
+Name	Type	Description
+shares	uint256	The amount of shares to redeem.
+Return Values
+Name	Type	Description
+_output0	uint256	The amount of assets that would be withdrawn.
+FACTORY
+Address of the factory that deployed the vault.
+
+Is used to retrieve the protocol fees.
+
+function FACTORY()
+
+Return Values
+Name	Type	Description
+_output0	address	Address of the vault factory.
+apiVersion
+Get the API version of the vault.
+
+function apiVersion()
+
+Return Values
+Name	Type	Description
+_output0	string	The API version of the vault.
+assess_share_of_unrealised_losses
+Assess the share of unrealised losses that a strategy has.
+
+function assess_share_of_unrealised_losses(address,uint256)
+
+Parameters
+Name	Type	Description
+strategy	address	The address of the strategy.
+assets_needed	uint256	The amount of assets needed to be withdrawn.
+Return Values
+Name	Type	Description
+_output0	uint256	The share of unrealised losses that the strategy has.
+profitMaxUnlockTime
+Gets the current time profits are set to unlock over.
+
+function profitMaxUnlockTime()
+
+Return Values
+Name	Type	Description
+_output0	uint256	The current profit max unlock time.
+fullProfitUnlockDate
+Gets the timestamp at which all profits will be unlocked.
+
+function fullProfitUnlockDate()
+
+Return Values
+Name	Type	Description
+_output0	uint256	The full profit unlocking timestamp
+profitUnlockingRate
+The per second rate at which profits are unlocking.
+
+This is denominated in EXTENDED_BPS decimals.
+
+function profitUnlockingRate()
+
+Return Values
+Name	Type	Description
+_output0	uint256	The current profit unlocking rate.
+lastProfitUpdate
+The timestamp of the last time shares were locked.
+
+function lastProfitUpdate()
+
+Return Values
+Name	Type	Description
+_output0	uint256	The last profit update.
+DOMAIN_SEPARATOR
+Get the domain separator.
+
+function DOMAIN_SEPARATOR()
+
+Return Values
+Name	Type	Description
+_output0	bytes32	The domain separator.
+accept_role_manager
+Accept the role manager transfer.
+
+function accept_role_manager()
+
+shutdown_vault
+Shutdown the vault.
+
+function shutdown_vault()
+
+Events
+Deposit
+Name	Type	Indexed?
+sender	address	Yes
+owner	address	Yes
+assets	uint256	No
+shares	uint256	No
+Withdraw
+Name	Type	Indexed?
+sender	address	Yes
+receiver	address	Yes
+owner	address	Yes
+assets	uint256	No
+shares	uint256	No
+Transfer
+Name	Type	Indexed?
+sender	address	Yes
+receiver	address	Yes
+value	uint256	No
+Approval
+Name	Type	Indexed?
+owner	address	Yes
+spender	address	Yes
+value	uint256	No
+StrategyChanged
+Name	Type	Indexed?
+strategy	address	Yes
+change_type	uint256	Yes
+StrategyReported
+Name	Type	Indexed?
+strategy	address	Yes
+gain	uint256	No
+loss	uint256	No
+current_debt	uint256	No
+protocol_fees	uint256	No
+total_fees	uint256	No
+total_refunds	uint256	No
+DebtUpdated
+Name	Type	Indexed?
+strategy	address	Yes
+current_debt	uint256	No
+new_debt	uint256	No
+RoleSet
+Name	Type	Indexed?
+account	address	Yes
+role	uint256	Yes
+UpdateFutureRoleManager
+Name	Type	Indexed?
+future_role_manager	address	Yes
+UpdateRoleManager
+Name	Type	Indexed?
+role_manager	address	Yes
+UpdateAccountant
+Name	Type	Indexed?
+accountant	address	Yes
+UpdateDepositLimitModule
+Name	Type	Indexed?
+deposit_limit_module	address	Yes
+UpdateWithdrawLimitModule
+Name	Type	Indexed?
+withdraw_limit_module	address	Yes
+UpdateDefaultQueue
+Name	Type	Indexed?
+new_default_queue	address[]	No
+UpdateUseDefaultQueue
+Name	Type	Indexed?
+use_default_queue	bool	No
+UpdateAutoAllocate
+Name	Type	Indexed?
+auto_allocate	bool	No
+UpdatedMaxDebtForStrategy
+Name	Type	Indexed?
+sender	address	Yes
+strategy	address	Yes
+new_debt	uint256	No
+UpdateDepositLimit
+Name	Type	Indexed?
+deposit_limit	uint256	No
+UpdateMinimumTotalIdle
+Name	Type	Indexed?
+minimum_total_idle	uint256	No
+UpdateProfitMaxUnlockTime
+Name	Type	Indexed?
+profit_max_unlock_time	uint256	No
+DebtPurchased
+Name	Type	Indexed?
+strategy	address	Yes
+amount	uint256	No
+Shutdown
+Name	Type	Indexed?

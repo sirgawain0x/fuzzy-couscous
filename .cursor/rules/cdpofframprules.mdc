@@ -1,0 +1,838 @@
+---
+description: Offramp lets your users convert crypto into fiat and send funds directly to a bank account (ACH) or a Coinbase account.
+alwaysApply: false
+---
+
+# Coinbase Offramp Overview
+
+Offramp lets your users convert crypto into fiat and send funds directly to a bank account (ACH) or a Coinbase account. Follow these steps to create and complete an offramp transaction:
+
+1. Create an offramp transaction by generating an Offramp URL
+2. Create an onchain transaction to send user funds from your App to Coinbase
+3. Coinbase process the transaction and deposits into your users account
+
+<Tip>
+  **See it live**
+  Check out our [Onramp + Offramp Demo App repo](https://github.com/coinbase/onramp-demo-app).
+</Tip>
+
+## Step 1: [Generate an Offramp URL](/onramp-&-offramp/offramp-apis/generating-offramp-url) with your parameters
+
+Create a `https://pay.coinbase.com/v3/sell/<params>` URL which you direct your users to. Be sure to include the following parameters:
+
+- `partnerUserId`: Your App's unique user identifier
+- `redirectUrl`: User will be taken after they submit an offramp transaction (Add your url to your onramp app domain allowlist on [CDP portal](https://portal.cdp.coinbase.com/products/onramp), Coinbase will validate that this is in your App's domain allowlist. You can also use localhost domain for testing)
+- `addresses`: The address of the user cashing out crypto for fiat. This address must contain the funds to be sold when the offramp transaction is created.
+- `sessionToken`: used to securely authenticate users and manage sessions (this is required and will be enforced starting 7/31/2025)
+
+_Note:_ Offramp transactions time out 30 mins after users click the "Cash out now" button in the Coinbase widget. Users must perform the onchain send transaction within this time.
+
+### Example Offramp URL
+
+Session tokens are now required and will be enforced starting 7/31/2025. The URL should look like this:
+
+```bash
+https://pay.coinbase.com/v3/sell/input?partnerUserId=userId&redirectUrl=https://homebase.coinbase.com&sessionToken=<token>
+```
+
+## Step 2: Create an onchain transaction to send user funds from your App to Coinbase
+
+- Call the [Offramp Transaction Status API](/onramp-&-offramp/offramp-apis/transaction-status#offramp-transaction-status) using `partnerUserId`.
+- Use the returned `sell_amount`, `asset`, `network`, and `to_address` to create an onchain send transaction in your App.
+  - Note: `to_address` is a Coinbase managed onchain address where send funds to be offramped
+- User signs the send transaction in your App.
+- Once this transaction is created, Coinbase will wait for onchain confirmation and process the transaction.
+
+## Step 3: Coinbase processes the transaction and deposits fiat into the user's account!
+
+- Coinbase validates the onchain send transaction to match `from_address`, `to_address`, `amount`, `network`, and `asset`.
+  - Note: for offramp transactions on Bitcoin and Bitcoin-based crypto assets (e.g. Zcash – ZEC, Litecoin – LTC, Bitcoin Cash – BCH, DogeCoin-DOGE) we do not validate `from_address` as it changes after every transaction.
+- Users will receive a status notification via SMS or email and in their Coinbase App based on the transaction's state:
+  - Initiated: eg. "Your sell for \$100.00 of BTC has been started"
+  - Success: eg. "You've sold \$100.00 of BTC"
+  - Fail: eg. "Your BTC was deposited to your Coinbase account"
+- If after the onchain send, the price of the asset falls below the "Receive at least" amount in a user's transaction, Coinbase will cancel the transaction and deposit the full crypto amount in the user's Coinbase account
+- Your App can pull the latest offramp transaction status from the [Offramp Transaction Status API](/onramp-&-offramp/offramp-apis/transaction-status#offramp-transaction-status)
+
+## See it live!
+
+Check out our [Onramp + Offramp Demo App](https://github.com/coinbase/onramp-demo-app).
+Have questions? Drop us a message in the **#onramp** channel of the [CDP Discord](https://discord.com/invite/cdp)!
+
+## Offramp API Endpoints
+
+The Offramp API has the following endpoints:
+
+| Method                                                                                             | Description                                                                                                                                              |
+| :------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Session Token](/onramp-&-offramp/offramp-apis/generating-offramp-url)                             | **Required starting 7/31/2025**: Provides a secure way for the client to initialize the Onramp and Offramp widget.                                       |
+| [Offramp Config](/onramp-&-offramp/onramp-apis/countries-&-currencies)                             | Returns list of countries supported by Coinbase Offramp, and the payment methods available in each country.                                              |
+| [Offramp Options](/onramp-&-offramp/onramp-apis/countries-&-currencies)                            | Returns supported fiat currencies and available crypto assets that can be passed into the Offramp Quote API.                                             |
+| [Offramp Quote](/onramp-&-offramp/offramp-apis/generating-offramp-url)                             | Provides a quote based on the asset the user would like to sell, plus the network, the crypto amount, the cashout currency, payment method, and country. |
+| [Transaction Status](/onramp-&-offramp/offramp-apis/transaction-status#offramp-transaction-status) | Real time transaction status updates.                                                                                                                    |
+| [Transactions](/onramp-&-offramp/offramp-apis/transaction-status#offramp-transactions)             | Historical transaction status.                                                                                                                           |
+
+<Tip>
+  Full API endpoint list
+
+For a complete list of all API endpoints supported by Onramp/Offramp, visit our [API Reference section](/api-reference/rest-api/onramp-offramp/create-buy-quote).
+</Tip>
+
+## Rate Limiting
+
+The **Buy Quote API and Sell Quote API** are rate limited to prevent abuse that would degrade our ability to maintain consistent API performance for all users.
+Throttling is enforced per endpoint by app ID at **10 requests per second**.
+
+If your requests are being rate limited, HTTP response code 429 is returned with a `rate_limit_exceeded` error.
+Rate limiting is implemented using a sliding window algorithm.
+
+# Generating an Offramp URL
+
+Coinbase Offramp is accessed by creating and directing users to a URL with [query parameters](#offramp-url-parameters) specific to their request.
+
+### Example URL
+
+Session tokens are now required and will be enforced starting 7/31/2025. The URL should look like this:
+
+```bash
+https://pay.coinbase.com/v3/sell/input?sessionToken=<token>&<other params>
+```
+
+### Offramp URL parameters
+
+The following table outlines parameters to generate the Offramp URL
+
+| Parameter              | Req'd | Type             | Description                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| :--------------------- | :---- | :--------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `appId`                | Yes   | String           | The Project ID found on the project Dashboard. Not required if using `sessionToken`.                                                                                                                                                                                                                                                                                                                                            |
+| `addresses`            | Yes   | Record\<Address> | User address which cashout is being initiated from. Not required if using `sessionToken`. Referenced as `from_address` in [Offramp Transaction Status API](/onramp-&-offramp/offramp-apis/transaction-status#offramp-transaction-status) Addresses that the purchased crypto should be sent to. An object whose keys are addresses and values are arrays of networks each address supports. (e.g. `addresses={"0x1":["base"]}`) |
+| `redirectUrl`          | Yes   | String           | URL to redirect the user to send crypto to the destination after they send crypto. Add your redirectUrl in [your onramp app domain allowlist on CDP portal](https://portal.cdp.coinbase.com/products/onramp) and use [Offramp Transaction Status API](/onramp-&-offramp/offramp-apis/transaction-status#sell-transaction-status) to fetch the send `to_address` details.                                                        |
+| `partnerUserId`        | Yes   | String           | Unique ID representing the end-user. Must be less than 50 chars. Use with the [Offramp Transaction Status API](/onramp-&-offramp/offramp-apis/transaction-status#offramp-transaction-status) to retrieve transactions made during the session.                                                                                                                                                                                  |
+| `sessionToken`         | Yes   | String           | Token generated by the [Session Token API](#getting-a-session-token). Required if [Require secure initialization](#getting-a-session-token) is true which all apps must do by 7/31/2025. If sessionToken is included, `appId` and `addresses` parameters are not used.                                                                                                                                                          |
+| `defaultNetwork`       | No    | String           | Default network that should be selected when multiple networks are present                                                                                                                                                                                                                                                                                                                                                      |
+| `defaultAsset`         | No    | String           | Default asset that should be selected when multiple assets are present                                                                                                                                                                                                                                                                                                                                                          |
+| `presetCryptoAmount`   | No    | Number           | Preset crypto amount value                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `presetFiatAmount`     | No    | Number           | Preset fiat amount value (for USD, CAD, GBP, EUR only). Ignored if `presetCryptoAmount` is also set.                                                                                                                                                                                                                                                                                                                            |
+| `defaultCashoutMethod` | No    | String           | Default payment method to cashout fiat ("FIAT_WALLET", "CRYPTO_ACCOUNT", "ACH_BANK_ACCOUNT", "PAYPAL")                                                                                                                                                                                                                                                                                                                          |
+| `fiatCurrency`         | No    | String           | e.g: USD, CAD, GBP, etc.                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `disableEdit`          | No    | Boolean          | If set to `true`, prevents users from editing their order in the One-Click Sell flow. By default, this is set to `false`.                                                                                                                                                                                                                                                                                                       |
+
+<Tabs>
+  <Tab value="example-url-session-token" title="Example URL with Session Token">
+    ```bash lines wrap
+    https://pay.coinbase.com/v3/sell/input?sessionToken=<token>&partnerUserId=testUser&redirectUrl=https://www.coinbase.com/onramp-redirect
+    ```
+  </Tab>
+
+  <Tab value="example-url" title="Example URL without Session Token">
+    ```bash lines wrap
+    https://pay.coinbase.com/v3/sell/input?appId=58a3fa2e-617f-4198-81e7-096f5e498c00&partnerUserId=testUser&addresses={"0x4315d134aCd3221a02dD380ADE3aF39Ce219037c":["ethereum","base"]}&assets=["ETH","BTC"]&redirectUrl=https://www.coinbase.com/onramp-redirect
+
+    ```
+
+  </Tab>
+</Tabs>
+
+<Info>
+  All transactions made during the session are linked to `partnerUserId` which can be used with the Transaction Status API to retrieve these transactions later.
+</Info>
+
+## Getting a Session Token
+
+{/_ For reference: api-offramp-initializing#getting-a-session-token _/}
+
+All apps must use session tokens starting 7/31/2025. Developers can create session token to securely authenticate users and manage sessions.
+
+### Authentication
+
+To authenticate your requests to the Session Token API, you'll need to:
+
+1. [Create a CDP Secret API Key](/onramp-&-offramp/introduction/getting-started#step-4-create-a-secret-api-key)
+2. Follow the instructions for [CDP API key authentication](/api-reference/v2/authentication#generate-bearer-token-jwt-and-export) to make signed requests
+
+Using the JWT token, you can make a request to the Session Token API to obtain a token, then pass that token as the `sessionToken` query string parameter when generating Offramp URLs.
+
+<Warning>
+  The token expires after a short period of time and can only be used once. A new token must be obtained for every new session.
+</Warning>
+
+<Tip>
+  Full API endpoint list
+
+For a complete list of all API endpoints supported by Onramp/Offramp, visit our [API Reference section](/api-reference/rest-api/onramp-offramp/create-session-token).
+</Tip>
+
+### Method
+
+```
+POST
+```
+
+### URL
+
+```
+https://api.developer.coinbase.com/onramp/v1/token
+```
+
+### Request Parameters
+
+The Session Token API is an RPC endpoint that accepts parameters as JSON in the request body.
+
+| Name        | Type                               | Req | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| :---------- | :--------------------------------- | :-- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `addresses` | [Address\[\]](#address-parameters) | Y   | List of addresses that the purchased crypto should be sent to. Each entry in this array is an object containing an address and a list of blockchains the address supports.                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `assets`    | String\[]                          | N   | List of assets that will be available for the user to buy/send. Assets can either be symbols e.g. "ETH" or "BTC", or UUIDs retrieved from the [Buy Options API](/onramp-&-offramp/onramp-apis/countries-&-currencies#buy-options). This optional parameter acts as a filter on the addresses parameter. If it is included then only the assets in this list that are available on one of the supported blockchains in the Addresses list will be available to the user. See the See the [Buy Options API](/onramp-&-offramp/onramp-apis/countries-&-currencies#buy-options) for the full list of assets. |
+
+#### Address Parameters
+
+An Address object accepts the following parameters:
+
+| Parameter   | Req'd | Type      | Description                                                                                                                                                                                                                                                                                                                                                                           |
+| :---------- | :---- | :-------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| address     | Yes   | String    | Destination address where the purchased tokens will be sent.                                                                                                                                                                                                                                                                                                                          |
+| blockchains | Yes   | String\[] | List of blockchains enabled for the associated address. All tokens available per blockchain are displayed to the user. Available blockchains include: "ethereum", "bitcoin", "base", "avachain", "optimism", "solana", "polygon", "arbitrum", "stellar" and many more. See the [Buy Options API](/onramp-&-offramp/onramp-apis/countries-&-currencies#buy-options) for the full list. |
+
+### Response Fields
+
+The Session Token API returns a JSON response including the following fields.
+
+| Name       | Description                                                                                                                                                                                                                                                                                                                                                                                              |
+| :--------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| token      | A unique string to be passed the URL as `sessionToken` [parameter](#offramp-url-parameters) when manually generating a URL to initialize the onramp widget (the resulting URL will look like `https://pay.coinbase.com/buy/select-asset?sessionToken=<token>&<other params>`). This token is associated with the parameters and App ID header provided in the request. This token can only be used once. |
+| channel_id | Not yet functional. Upcoming implementation: A socket.io channel ID that can be used to receive events from the Onramp API while the customer goes through the transaction flow.                                                                                                                                                                                                                         |
+
+### Example Request/Response
+
+<Tabs>
+  <Tab value="bash" title="Request (cURL)">
+    ```bash lines wrap
+    cdpcurl -X POST 'https://api.developer.coinbase.com/onramp/v1/token' \
+      -k /tmp/cdp_api_key.json \
+      -d '{"addresses": [{"address": "0x4315d134aCd3221a02dD380ADE3aF39Ce219037c", "blockchains": ["ethereum"]}]}'
+    ```
+  </Tab>
+
+  <Tab value="jsonResponse" title="Response 200 (JSON)">
+    ```json lines wrap
+    {
+      "data": {
+        "token": "ZWJlNDgwYmItNjBkMi00ZmFiLWIxYTQtMTM3MGI2YjJiNjFh",
+        "channel_id": "",
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+# Countries & Currencies
+
+## Offramp Config
+
+The Offramp Config API returns the list of countries that support offramp transactions, and the payment methods available in each country.
+Clients can call this API periodically and cache the response so that they know which users to present the Coinbase Offramp sell transaction option to.
+
+<Tip>
+  Full API endpoint list
+
+For a complete list of all API endpoints supported by Onramp/Offramp, visit our [API Reference section](/api-reference/rest-api/onramp-offramp/get-sell-config).
+</Tip>
+
+### Method
+
+```
+GET
+```
+
+### URL
+
+```
+https://api.developer.coinbase.com/onramp/v1/sell/config
+```
+
+### Request Parameters
+
+The Offramp Config API has no request parameters.
+
+### Response Fields
+
+The Offramp Config API returns a JSON response including the following fields.
+
+| Name        | Description                                                                                                                                                                                                                                                                |
+| :---------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `countries` | A list of supported countries, represented by their [ISO 3166-1](https://en.wikipedia.org/wiki/ISO_3166-1) two digit country code. Each country contains a list of payment method types available in that country; for the US it also contains a list of supported states. |
+
+### Example Request/Response
+
+<Tabs>
+  <Tab value="bash" title="Request (cURL)">
+    ```bash lines wrap
+    cdpcurl -k /tmp/cdp_api_key.json 'https://api.developer.coinbase.com/onramp/v1/sell/config'
+    ```
+  </Tab>
+
+  <Tab value="jsonResponse" title="Response 200 (JSON)">
+    ```json lines wrap
+    {
+      "data": {
+        "countries": [
+          {
+            "id": "US",
+            "subdivisions": ["CA","NY","WA"],
+            "payment_methods": [
+              {
+                "id": "CRYPTO_WALLET",
+              },
+              {
+                "id": "FIAT_WALLET",
+              },
+              {
+                "id": "ACH_BANK_ACCOUNT",
+              },
+            ],
+          },
+          {
+            "id": "CA",
+            "subdivisions": []
+            "payment_methods": [
+              {
+                "id": "CARD",
+              },
+            ],
+          },
+        ],
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Offramp Options
+
+The Offramp Options API provides clients with a way to discover the available options for selling Crypto with Coinbase Offramp.
+It returns the supported fiat currencies and available crypto assets that can be passed into the Sell Quote API.
+
+<Tip>
+  Full API endpoint list
+  For a complete list of all API endpoints supported by Onramp/Offramp, visit our [API Reference section](/api-reference/rest-api/onramp-offramp/get-sell-options).
+</Tip>
+
+### Method
+
+```
+GET
+```
+
+### URL
+
+```
+https://api.developer.coinbase.com/onramp/v1/sell/options
+```
+
+### Request Parameters
+
+| Name          | Req | Description                                                                                                                                                                                                                                                                                       |
+| :------------ | :-- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `country`     | Y   | [ISO 3166-1](https://en.wikipedia.org/wiki/ISO_3166-1) two-digit country code string representing the purchasing user’s country of residence, e.g., `US`.                                                                                                                                         |
+| `subdivision` | N   | [ISO 3166-2](https://en.wikipedia.org/wiki/ISO_3166-2) two-digit country subdivision code representing the purchasing user’s subdivision of residence within their country, e.g. `NY`. Required if the `country=“US”` because certain states (e.g., `NY`) have state specific asset restrictions. |
+
+### Response Fields
+
+The Offramp Options API returns a JSON response including the following fields.
+
+| Name                 | Description                                                                                                                                                                                                                |
+| :------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cashout_currencies` | List of supported fiat currencies that can exchange crypto to on Coinbase Onramp in the given location. Each currency contains a list of available payment methods, with min and max transaction limits for that currency. |
+| `sell_currencies`    | List of available crypto assets that can be sold on Onramp in the given location.                                                                                                                                          |
+
+### Example Request/Response
+
+<Tabs>
+  <Tab value="bash" title="Request (cURL)">
+    ```bash lines wrap
+    cdpcurl -k /tmp/cdp_api_key.json 'https://api.developer.coinbase.com/onramp/v1/sell/options?country=US&subdivision=NY'
+    ```
+  </Tab>
+
+  <Tab value="jsonResponse" title="Response 200 (JSON)">
+    ```json lines wrap
+    {
+      "data": {
+        "cashout_currencies": [
+          {
+            "id": "USD",
+            "payment_method_limits": [
+              {
+                "id": "card",
+                "min": "10.00",
+                "max": "7500.00",
+              },
+              {
+                "id": "ach_bank_account",
+                "min": "10.00",
+                "max": "25000.00",
+              },
+            ],
+          },
+        ],
+        "sell_currencies": [
+          {
+            "id": "2b92315d-eab7-5bef-84fa-089a131333f5",
+            "name": "USD Coin",
+            "symbol": "USDC",
+            "networks": [
+              {
+                "name": "ethereum-mainnet",
+                "display_name": "Ethereum",
+                "chain_id": "1",
+                "contract_address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+              },
+              {
+                "name": "polygon-mainnet",
+                "display_name": "Polygon",
+                "chain_id": "137",
+                "contract_address": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+              },
+            ]
+          }
+        ],
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+# Generating Offramp Quotes
+
+## Offramp Quote
+
+The Offramp Quote API provides clients with a quote based on the asset the user would like to sell, the network of the asset is on, the crypto amount of the asset, the cashout fiat currency, the payment method, and country of the user.
+
+<Info>
+  Limitations
+
+The quote provided by this API is an estimate only. It does not guarantee that the user will be able to complete their purchase using the returned quote. Depending on fluctuations in exchange rates, the actual fees charged may be different.
+</Info>
+
+<Tip>
+  The Sell Quote API can now return a ready-to-use one-click-sell offramp URL. Include `source_address`, `redirect_url`, and `partner_user_id` parameters in your request to receive a complete `offramp_url` in the response. See the [example with offramp URL](#example-requestresponse-with-offramp-url) below.
+</Tip>
+
+<Tip>
+  Full API endpoint list
+
+For a complete list of all API endpoints supported by Onramp/Offramp, visit our [API Reference section](/api-reference/rest-api/onramp-offramp/create-sell-quote).
+</Tip>
+
+### Method
+
+```
+POST
+```
+
+### URL
+
+```
+https://api.developer.coinbase.com/onramp/v1/sell/quote
+```
+
+### Request Parameters
+
+The Offramp Quote API is an RPC endpoint that accepts parameters as JSON in the request body.
+
+| Name               | Type   | Req | Description                                                                                                                                                                                                                                                                            |
+| :----------------- | :----- | :-- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sell_currency`    |        | Y   | ID of the crypto asset the user wants to offramp. Retrieved from the Offramp Options API.                                                                                                                                                                                              |
+| `sell_network`     |        | N   | Name of the network that the sell currency is on. Retrieved from the Offramp Options API. If omitted, the default network for the crypto currency is used.                                                                                                                             |
+| `sell_amount`      | String | Y   | Crypto amount the user wants to offramp, exclusive of network fees                                                                                                                                                                                                                     |
+| `cashout_currency` | String | Y   | Fiat currency of the cashout amount, e.g., `USD`.                                                                                                                                                                                                                                      |
+| `payment_method`   |        | Y   | ID of payment method used to cashout the sell. Retrieved from the options API.                                                                                                                                                                                                         |
+| `country`          |        | Y   | [ISO 3166-1](https://en.wikipedia.org/wiki/ISO_3166-1) two-digit country code string representing the user’s country of residence, e.g., `US`.                                                                                                                                         |
+| `subdivision`      |        | N   | [ISO 3166-2](https://en.wikipedia.org/wiki/ISO_3166-2) two-digit country subdivision code representing the user’s subdivision of residence within their country, e.g. `NY`. Required if the `country="US"` because certain states (e.g., `NY`) have state specific asset restrictions. |
+| `source_address`   |        | N   | Source address for the asset to sell. Optional field for quote, required for generating a ready-to-use one-click-sell URL.                                                                                                                                                             |
+| `redirect_url`     |        | N   | URL to redirect after transaction completion. Optional field for quote, required for generating a ready-to-use one-click-sell URL.                                                                                                                                                     |
+| `partner_user_id`  |        | N   | Partner's user identifier. Optional field for quote, required for generating a ready-to-use one-click-sell URL.                                                                                                                                                                        |
+
+### Response Fields
+
+The Offramp Quote API returns a JSON response including the following fields.
+
+| Name               | Description                                                                                                                                                                                                           |
+| :----------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cashout_total`    | Object with amount and currency of the fiat amount of crypto asset to be received, fees deducted. The currency will match the `cashout_currency` in the request if it is supported, otherwise it falls back to `USD`. |
+| `cashout_subtotal` | Object with amount and currency of the total fiat cost of the crypto asset, fees not deducted. The currency will match the `cashout_currency`.                                                                        |
+| `sell_amount`      | Object with amount and currency of the crypto that to be sold. The currency will match the `sell_currency` in the request. The number of decimals will be based on the crypto asset.                                  |
+| `coinbase_fee`     | Object with amount and currency of the fee changed by the Coinbase exchange to complete the transaction. The currency will match the `cashout_currency`.                                                              |
+| `quote_id`         | Reference to the quote that should be passed into the initialization parameters when launching the Coinbase Onramp widget via the SDK or URL generator.                                                               |
+| `offramp_url`      | Ready-to-use offramp URL. Only returned when `source_address`, `redirect_url`, and `partner_user_id` are ALL provided in the request.                                                                                 |
+
+<Info>
+  Creating a One-Click-Buy URL with the Quote
+
+To create an Onramp link with all inputs pre-filled that takes users straight to the final order preview screen, please go to our [One-click-buy URL](/onramp-&-offramp/onramp-apis/one-click-buy-url) section for information.
+</Info>
+
+### Example Request/Response
+
+<Tabs>
+  <Tab value="bash" title="Request (cURL)">
+    ```bash lines wrap
+    cdpcurl -X POST 'https://api.developer.coinbase.com/onramp/v1/sell/quote' \
+      -k /tmp/cdp_api_key.json \
+      -d '{"sell_currency": "BTC", "sell_amount": "0.01", "cashout_currency": "USD", "payment_method": "FIAT_WALLET", "country": "US", "subdivision": "NY"}'
+    ```
+  </Tab>
+
+  <Tab value="jsonResponse" title="Response 200 (JSON)">
+    ```json lines wrap
+    {
+      "data": {
+        "cashout_total": {
+          "amount": "98.50",
+          "currency": "USD"
+        },
+        "cashout_subtotal": {
+          "amount": "100.00",
+          "currency": "USD"
+        },
+        "sell_amount": {
+          "amount": "0.00100000",
+          "currency": "BTC"
+        },
+        "coinbase_fee": {
+          "amount": "1.50",
+          "currency": "USD"
+        },
+        "quote_id": "46da84dc-b6d7-11ed-afa1-0242ac120002"
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Example Request/Response with Offramp URL
+
+<Tabs>
+  <Tab value="bash" title="Request with URL parameters (cURL)">
+    ```bash lines wrap
+    cdpcurl -X POST 'https://api.developer.coinbase.com/onramp/v1/sell/quote' \
+      -k /tmp/cdp_api_key.json \
+      -d '{"sell_currency": "BTC", "sell_amount": "0.01", "cashout_currency": "USD", "payment_method": "FIAT_WALLET", "country": "US", "subdivision": "NY", "source_address": "0x71C7656EC7ab88b098defB751B7401B5f6d8976F", "redirect_url": "https://www.example.com/redirect", "partner_user_id": "user123"}'
+    ```
+  </Tab>
+
+  <Tab value="jsonResponseWithUrl" title="Response 200 with offramp_url (JSON)">
+    ```json lines wrap
+    {
+      "data": {
+        "cashout_total": {
+          "amount": "98.50",
+          "currency": "USD"
+        },
+        "cashout_subtotal": {
+          "amount": "100.00",
+          "currency": "USD"
+        },
+        "sell_amount": {
+          "amount": "0.00100000",
+          "currency": "BTC"
+        },
+        "coinbase_fee": {
+          "amount": "1.50",
+          "currency": "USD"
+        },
+        "quote_id": "46da84dc-b6d7-11ed-afa1-0242ac120002",
+        "offramp_url": "https://pay.coinbase.com/v3/sell/input?sessionToken=ZWJlNDgwYmItNjBkMi00ZmFiLWIxYTQtMTM3MGI2YjJiNjFh&quoteId=46da84dc-b6d7-11ed-afa1-0242ac120002&defaultAsset=BTC&defaultCashoutMethod=FIAT_WALLET&presetCryptoAmount=0.01&redirectUrl=https%3A%2F%2Fwww.example.com%2Fredirect&partnerUserId=user123"
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+# Transaction Status & History
+
+## Offramp Transaction Status
+
+The Offramp Transaction Status API provides developers with a list of user Offramp transactions. Developers can poll the real time status of offramp transactions and show users a view of their Coinbase transactions made within the client app.
+
+To link all transactions created during the session, developers must provide the (optional) field `partnerUserId` as a query parameter when [initializing Coinbase Onramp and Offramp](/onramp-&-offramp/onramp-apis/generating-onramp-url).
+
+Transaction Status returns a paginated list of all transactions from newest to oldest. If the client app doesn’t have a concept of a user, clients can pass a random `partnerUserId` to reference a one-off session.
+
+There are two ways to get the transaction status:
+
+1. Use the [fetchOnrampTransactionStatus](https://docs.base.org/builderkits/onchainkit/fund/fetch-onramp-transaction-status#fetchonramptransactionstatus) util to get the transaction status
+2. Make a direct call to the API
+
+<Tip>
+  Full API endpoint list
+
+For a complete list of all API endpoints supported by Onramp/Offramp, visit our [API Reference section](/api-reference/rest-api/onramp-offramp/get-offramp-transactions-by-id).
+</Tip>
+
+### Method
+
+```
+GET
+```
+
+### URL
+
+```
+https://api.developer.coinbase.com/onramp/v1/sell/user/{partner_user_id}/transactions?page_key={next_page_key}&page_size={page_size}
+```
+
+### Request Parameters
+
+The Transaction Status API is an RPC endpoint that accepts an argument as part of its URL path.
+
+| Name              | Type   | Req | Description                                                                   |
+| :---------------- | :----- | :-- | :---------------------------------------------------------------------------- |
+| `partner_user_id` | String | Y   | ID referring to user Offramp transactions in client app.                      |
+| `page_key`        | String | N   | Reference to next page of transactions. Returned in previous page’s response. |
+| `page_size`       | Number | N   | Number of transactions to return per page. Default is 1.                      |
+
+### Response Fields
+
+The Transaction Status API returns a JSON response including the following fields.
+
+| Name            | Description                                                   |
+| :-------------- | :------------------------------------------------------------ |
+| `transactions`  | List of `OfframpTransactions` in reverse chronological order. |
+| `next_page_key` | A reference to the next page of transactions.                 |
+| `total_count`   | The total number of transactions made by the user.            |
+
+#### OfframpTransaction Schema
+
+| Name             | Description                                                      | Value                                                                                           |
+| :--------------- | :--------------------------------------------------------------- | :---------------------------------------------------------------------------------------------- |
+| `status`         | Status of the offramp transaction.                               | `TRANSACTION_STATUS_STARTED`<br />`TRANSACTION_STATUS_SUCCESS`<br />`TRANSACTION_STATUS_FAILED` |
+| `asset`          | Crypto currency being sold.                                      | String                                                                                          |
+| `network`        | Network that crypto currency is on in the user’s wallet.         | String                                                                                          |
+| `sell_amount`    | Amount of crypto currency being sold.                            | String                                                                                          |
+| `total`          | Total amount of fiat the user will receive, fees deducted.       | String                                                                                          |
+| `subtotal`       | Amount of fiat for the crypto asset, fees not deducted.          | String                                                                                          |
+| `coinbase_fee`   | Amount of fiat charged to cover brokerage fees.                  | String                                                                                          |
+| `exchange_rate`  | Unit price of the crypto currency being sold.                    | String                                                                                          |
+| `from_address`   | The address of the wallet the transaction was sent from.         | String                                                                                          |
+| `to_address`     | The address of the coinbase address the transaction was sent to. | String                                                                                          |
+| `tx_hash`        | The block hash of the onchain send.                              | String                                                                                          |
+| `payment_method` | Type of payment method used to cash out funds.                   | `FIAT_WALLET`<br />`CRYPTO_WALLET`<br />`ACH_BANK_ACCOUNT`<br />`PAYPAL`<br />                  |
+
+### Example Request/Response
+
+<Tabs>
+  <Tab value="bash" title="Request (cURL)">
+    ```bash lines wrap
+    cdpcurl -k /tmp/cdp_api_key.json 'https://api.developer.coinbase.com/onramp/v1/sell/user/{partner_user_id}/transactions?page_key={next_page_key}&page_size={page_size}'
+    ```
+  </Tab>
+
+  <Tab value="jsonResponse" title="Response 200 (JSON)">
+    ```json lines wrap
+    {
+        "transactions": [
+            {
+                "id": "1ef6658f-697e-6200-b081-ba4f2149344a",
+                "asset": "ETH",
+                "status": "TRANSACTION_STATUS_SUCCESS",
+                "network": "base",
+                "sell_amount": {
+                    "value": "0.005",
+                    "currency": "ETH"
+                },
+                "total": {
+                    "value": "12.58",
+                    "currency": "USD"
+                },
+                "subtotal": {
+                    "value": "12.51",
+                    "currency": "USD"
+                },
+                "coinbase_fee": {
+                    "value": "0.07",
+                    "currency": "USD"
+                },
+                "exchange_rate": {
+                    "value": "0.000453720508167",
+                    "currency": "ETH"
+                },
+                "fromAddress": "0x7D09655eF4664ED4D449b0d27E15AdA1D2Ae3bE5",
+                "toAddress": "0x0b59d1001629c86da136a0B480Db68EDBf70e222",
+                "tx_hash": "0x31814ba2fef2a400a9816767370be09ca12d9e9753b972198fe330a0ecedcbf6",
+                "created_at": "2024-08-29T20:06:07.076Z",
+                "updated_at": "2024-08-29T20:10:24.054Z",
+            }
+        ],
+        "next_page_key":"eyJndF9za2lwIjowLCJvdF9za2lwIjoxfQ==",
+        "total_count":"3"
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Offramp Transactions
+
+The Offramp Transactions API provides clients with a list of historical Offramp transactions between two dates.
+Transactions returns a paginated list of all transactions from newest to oldest.
+The Transactions API is indented for analytics purposes.
+
+If you need real time information about a specific transaction, use the [Offramp Transaction Status API](#offramp-transaction-status).
+
+<Tip>
+  Full API endpoint list
+  For a complete list of all API endpoints supported by Onramp/Offramp, visit our [API Reference section](/api-reference/rest-api/onramp-offramp/get-all-offramp-transactions).
+</Tip>
+
+### Method
+
+```
+GET
+```
+
+### URL
+
+```
+https://api.developer.coinbase.com/onramp/v1/sell/transactions?page_key={next_page_key}&page_size={page_size}&start_date={start_date}&end_date={end_date}
+```
+
+### Request Parameters
+
+| Name         | Type   | Req | Description                                                                                                                   |
+| :----------- | :----- | :-- | :---------------------------------------------------------------------------------------------------------------------------- |
+| `page_key`   | String | N   | Reference to next page of transactions. Returned in previous page’s response.                                                 |
+| `page_size`  | Number | N   | Number of transactions to return per page. Default is 1000.                                                                   |
+| `start_date` | String | N   | The start date (inclusive) of the range of transactions to return. YYYY-MM-DD format. Default is one month before `end_date`. |
+| `end_date`   | String | N   | The end date (exclusive) of the range of transactions to return. YYYY-MM-DD format. Default is tomorrow.                      |
+
+### Response Fields
+
+The Transaction API returns a JSON response including the following fields.
+
+| Name            | Description                                                   |
+| :-------------- | :------------------------------------------------------------ |
+| `transactions`  | List of `OfframpTransactions` in reverse chronological order. |
+| `next_page_key` | A reference to the next page of transactions.                 |
+
+#### OfframpTransaction Schema
+
+| Name            | Description                                                      | Value                                                         |
+| :-------------- | :--------------------------------------------------------------- | :------------------------------------------------------------ |
+| `status`        | Status of the sell transaction.                                  | `TRANSACTION_STATUS_SUCCESS`<br />`TRANSACTION_STATUS_FAILED` |
+| `asset`         | Crypto currency being sold.                                      | String                                                        |
+| `network`       | Network that crypto currency is on in the user’s wallet.         | String                                                        |
+| `sell_amount`   | Amount of crypto currency being sold.                            | String                                                        |
+| `total`         | Total amount of fiat the user will receive, fees deducted.       | String                                                        |
+| `subtotal`      | Amount of fiat for the crypto asset, fees not deducted.          | String                                                        |
+| `coinbase_fee`  | Amount of fiat charged to cover brokerage fees.                  | String                                                        |
+| `exchange_rate` | Unit price of the crypto currency being sold.                    | String                                                        |
+| `from_address`  | The address of the wallet the transaction was sent from.         | String                                                        |
+| `to_address`    | The address of the coinbase address the transaction was sent to. | String                                                        |
+| `tx_hash`       | The block hash of the onchain send.                              | String                                                        |
+
+### Example Request/Response
+
+<Tabs>
+  <Tab value="bash" title="Request (cURL)">
+    ```bash lines wrap
+    cdpcurl -k /tmp/cdp_api_key.json 'https://api.developer.coinbase.com/onramp/v1/sell/transactions?page_key={next_page_key}&page_size={page_size}&start_date={start_date}&end_date={end_date}'
+    ```
+  </Tab>
+
+  <Tab value="jsonResponse" title="Response 200 (JSON)">
+    ```json lines wrap
+    {
+        "transactions": [
+            {
+                "id": "1ef6658f-697e-6200-b081-ba4f2149344a",
+                "asset": "ETH",
+                "status": "TRANSACTION_STATUS_SUCCESS",
+                "network": "base",
+                "sell_amount": {
+                    "value": "0.005",
+                    "currency": "ETH"
+                },
+                "total": {
+                    "value": "12.58",
+                    "currency": "USD"
+                },
+                "subtotal": {
+                    "value": "12.51",
+                    "currency": "USD"
+                },
+                "coinbase_fee": {
+                    "value": "0.07",
+                    "currency": "USD"
+                },
+                "exchange_rate": {
+                    "value": "0.000453720508167",
+                    "currency": "ETH"
+                },
+                "fromAddress": "0x7D09655eF4664ED4D449b0d27E15AdA1D2Ae3bE5",
+                "toAddress": "0x0b59d1001629c86da136a0B480Db68EDBf70e222",
+                "tx_hash": "0x31814ba2fef2a400a9816767370be09ca12d9e9753b972198fe330a0ecedcbf6",
+                "created_at": "2024-08-29T20:06:07.076Z",
+                "updated_at": "2024-08-29T20:10:24.054Z",
+            }
+        ],
+        "next_page_key":"eyJndF9za2lwIjowLCJvdF9za2lwIjoxfQ==",
+        "total_count":"3"
+    }
+    ```
+  </Tab>
+</Tabs>
+
+# One-click-sell Offramp URL
+
+Prefill all query string parameters in the Offramp URL and take users straight to the order preview screen!
+
+<Info>
+  Should my App use One-click-sell?
+
+If your users have already selected the asset they want to sell, an amount, and/or a cashout method in your App, **yes**.
+If you want to preset these values for your users, **yes**.
+</Info>
+
+<Tip>
+  Get a ready-to-use One-Click-Sell URL directly from the [Sell Quote API](/onramp-&-offramp/offramp-apis/generating-quotes#example-requestresponse-with-offramp-url) by including `source_address`, `redirect_url`, and `partner_user_id` parameters in your quote request!
+</Tip>
+
+### Manually generating One-Click-Sell URLs
+
+<Tip>
+  Full API endpoint list
+
+For a complete list of all API endpoints supported by Onramp/Offramp, visit our [API Reference section](/api-reference/rest-api/onramp-offramp/create-sell-quote).
+</Tip>
+
+### Generating One-Click-Sell URLs
+
+One-Click-Sell URLs must have following query parameters set in the URL:
+
+- `defaultAsset`
+- `presetFiatAmount` or `presetCryptoAmount`
+
+Then it initializes Coinbase Offramp with the appropriate parameters to execute that sell.
+
+For example:
+
+```bash
+https://pay.coinbase.com/v3/sell/input?sessionToken=<token>&partnerUserId=testUser&redirectUrl=https://www.coinbase.com/onramp-redirect&defaultAsset=ETH&presetFiatAmount=100&quoteId=ae77980c-f656-4c69-b380-cb5cf99276a9
+```
+
+Crypto amount only:
+
+```bash
+https://pay.coinbase.com/v3/sell/input?sessionToken=<token>&partnerUserId=testUser&redirectUrl=https://www.coinbase.com/onramp-redirect&defaultAsset=BTC&presetCryptoAmount=0.001&quoteId=ae77980c-f656-4c69-b380-cb5cf99276a9
+```
+
+### Query parameters
+
+| Parameter            | Reqd | Type    | Description                                                                                                                                                                                                                                                                                                                                                    |
+| :------------------- | :--- | :------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sessionToken`       | Yes  | String  | Token generated by the [Session Token API](/onramp-&-offramp/offramp-apis/generating-offramp-url#getting-a-session-token). Required if [Require secure initialization](/onramp-&-offramp/offramp-apis/generating-offramp-url#getting-a-session-token) is true which all apps must do by 7/31/2025.                                                             |
+| `partnerUserId`      | Yes  | String  | Unique ID representing the end-user. Must be less than 50 chars. Use with the [Offramp Transaction Status API](/onramp-&-offramp/offramp-apis/transaction-status#offramp-transaction-status) to retrieve transactions made during the session.                                                                                                                 |
+| `redirectUrl`        | Yes  | String  | URL to redirect the user after they complete the offramp transaction. Add your redirectUrl in [your onramp app domain allowlist on CDP portal](https://portal.cdp.coinbase.com/products/onramp) and use [Offramp Transaction Status API](/onramp-&-offramp/offramp-apis/transaction-status#offramp-transaction-status) to fetch the send `to_address` details. |
+| `defaultAsset`       | Yes  | String  | Symbol of the crypto asset to sell (e.g., `ETH`, `BTC`, `USDC`). <br /><br />_Received from [Offramp Options](/onramp-&-offramp/offramp-apis/configurations) and sent to [Sell Quote](/onramp-&-offramp/offramp-apis/generating-quotes)._                                                                                                                      |
+| `presetFiatAmount`   | Yes  | Number  | Amount in fiat to receive from the crypto sale. Do not add presetFiatAmount if presetCryptoAmount is present.                                                                                                                                                                                                                                                  |
+| `presetCryptoAmount` | Yes  | Number  | Use this instead of `presetFiatAmount` to specify the exact crypto amount to sell. Do not add presetCryptoAmount if presetFiatAmount is present                                                                                                                                                                                                                |
+| `disableEdit`        | No   | Boolean | If set to `true`, prevents users from editing their order in the One-Click Sell flow. Defaults to `false`.                                                                                                                                                                                                                                                     |

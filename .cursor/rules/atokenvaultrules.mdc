@@ -1,0 +1,883 @@
+---
+description: The  ATokenVault  contract is an ERC-4626 compliant yield-bearing vault designed for Aave V3.
+alwaysApply: false
+---
+The 
+ATokenVault
+ contract is an ERC-4626 compliant yield-bearing vault designed for Aave V3. It allows users to supply and withdraw ERC-20 tokens supported by Aave V3, automatically managing asset supply and withdrawal within the Aave Protocol. This vault also enables managers to collect a fee on the yield generated.
+
+The smart contract source code is available on GitHub.
+
+Write Methods
+initialize
+function initialize(
+    address owner,
+    uint256 initialFee,
+    string memory shareName,
+    string memory shareSymbol,
+    uint256 initialLockDeposit
+) external initializer
+Initializes the vault, setting its initial parameters and initializing inherited contracts. An initial non-zero deposit (in underlying tokens) is required to prevent frontrunning attacks. It does not initialize the 
+OwnableUpgradeable
+ contract to avoid setting the proxy admin as the owner.
+
+Input Parameters:
+Name
+Type
+Description
+owner
+address
+The address to set as the owner of the vault.
+initialFee
+uint256
+The initial fee to set, expressed in wad, where (1 \times 10^18) is 100%.	
+shareName
+string
+The name to set for the vault's shares.
+shareSymbol
+string
+The symbol to set for the vault's shares.
+initialLockDeposit
+uint256
+The initial amount of underlying assets to deposit. This must be a non-zero, non-trivial amount, depending on the underlying asset's decimals.
+deposit
+function deposit(uint256 assets, address receiver) public override returns (uint256)
+Deposits 
+assets
+ (underlying tokens) into the vault and mints a corresponding amount of vault shares to the 
+receiver
+.
+
+Input Parameters:
+Name
+Type
+Description
+assets
+uint256
+The amount of underlying assets to deposit.
+receiver
+address
+The address to which vault shares will be minted.
+Return Values:
+Type
+Description
+uint256
+The amount of vault shares minted.
+depositATokens
+function depositATokens(uint256 assets, address receiver) public override returns (uint256)
+Deposits 
+assets
+ (aTokens) directly into the vault and mints a corresponding amount of vault shares to the 
+receiver
+.
+
+Input Parameters:
+Name
+Type
+Description
+assets
+uint256
+The amount of aTokens to deposit.
+receiver
+address
+The address to which vault shares will be minted.
+Return Values:
+Type
+Description
+uint256
+The amount of vault shares minted.
+depositWithSig
+function depositWithSig(
+    uint256 assets,
+    address receiver,
+    address depositor,
+    EIP712Signature calldata sig
+) public override returns (uint256)
+Deposits 
+assets
+ (underlying tokens) into the vault on behalf of a 
+depositor
+, authenticated by an EIP-712 signature. Vault shares are minted to the 
+receiver
+.
+
+Input Parameters:
+Name
+Type
+Description
+assets
+uint256
+The amount of underlying assets to deposit.
+receiver
+address
+The address to which vault shares will be minted.
+depositor
+address
+The address of the actual depositor, whose signature is provided.
+sig
+EIP712Signature
+The EIP-712 signature for the deposit transaction, including 
+v
+, 
+r
+, 
+s
+ parameters, and 
+deadline
+.	
+Return Values:
+Type
+Description
+uint256
+The amount of vault shares minted.
+depositATokensWithSig
+function depositATokensWithSig(
+    uint256 assets,
+    address receiver,
+    address depositor,
+    EIP712Signature calldata sig
+) public override returns (uint256)
+Deposits 
+assets
+ (aTokens) directly into the vault on behalf of a 
+depositor
+, authenticated by an EIP-712 signature. Vault shares are minted to the 
+receiver
+.
+
+Input Parameters:
+Name
+Type
+Description
+assets
+uint256
+The amount of aTokens to deposit.
+receiver
+address
+The address to which vault shares will be minted.
+depositor
+address
+The address of the actual depositor, whose signature is provided.
+sig
+EIP712Signature
+The EIP-712 signature for the deposit transaction, including 
+v
+, 
+r
+, 
+s
+ parameters, and 
+deadline
+.	
+Return Values:
+Type
+Description
+uint256
+The amount of vault shares minted.
+mint
+function mint(uint256 shares, address receiver) public override returns (uint256)
+Mints an exact amount of 
+shares
+ (vault shares) to the 
+receiver
+ by depositing the calculated amount of underlying assets.
+
+Input Parameters:
+Name
+Type
+Description
+shares
+uint256
+The exact amount of vault shares to mint.
+receiver
+address
+The address to which vault shares will be minted.
+Return Values:
+Type
+Description
+uint256
+The amount of underlying assets required to mint the specified shares.
+mintWithATokens
+function mintWithATokens(uint256 shares, address receiver) public override returns (uint256)
+Mints an exact amount of 
+shares
+ (vault shares) to the 
+receiver
+ by depositing the calculated amount of aTokens.
+
+Input Parameters:
+Name
+Type
+Description
+shares
+uint256
+The exact amount of vault shares to mint.
+receiver
+address
+The address to which vault shares will be minted.
+Return Values:
+Type
+Description
+uint256
+The amount of aTokens required to mint the specified shares.
+mintWithSig
+function mintWithSig(
+    uint256 shares,
+    address receiver,
+    address depositor,
+    EIP712Signature calldata sig
+) public override returns (uint256)
+Mints an exact amount of 
+shares
+ (vault shares) to the 
+receiver
+ on behalf of a 
+depositor
+, authenticated by an EIP-712 signature, by depositing the calculated amount of underlying assets.
+
+Input Parameters:
+Name
+Type
+Description
+shares
+uint256
+The exact amount of vault shares to mint.
+receiver
+address
+The address to which vault shares will be minted.
+depositor
+address
+The address of the actual depositor, whose signature is provided.
+sig
+EIP712Signature
+The EIP-712 signature for the mint transaction, including 
+v
+, 
+r
+, 
+s
+ parameters, and 
+deadline
+.	
+Return Values:
+Type
+Description
+uint256
+The amount of underlying assets required to mint the specified shares.
+mintWithATokensWithSig
+function mintWithATokensWithSig(
+    uint256 shares,
+    address receiver,
+    address depositor,
+    EIP712Signature calldata sig
+) public override returns (uint256)
+Mints an exact amount of 
+shares
+ (vault shares) to the 
+receiver
+ on behalf of a 
+depositor
+, authenticated by an EIP-712 signature, by depositing the calculated amount of aTokens.
+
+Input Parameters:
+Name
+Type
+Description
+shares
+uint256
+The exact amount of vault shares to mint.
+receiver
+address
+The address to which vault shares will be minted.
+depositor
+address
+The address of the actual depositor, whose signature is provided.
+sig
+EIP712Signature
+The EIP-712 signature for the mint transaction, including 
+v
+, 
+r
+, 
+s
+ parameters, and 
+deadline
+.	
+Return Values:
+Type
+Description
+uint256
+The amount of aTokens required to mint the specified shares.
+withdraw
+function withdraw(
+    uint256 assets,
+    address receiver,
+    address owner
+) public override returns (uint256)
+Withdraws 
+assets
+ (underlying tokens) from the vault and sends them to the 
+receiver
+. The corresponding vault shares are burned from the 
+owner
+.
+
+Input Parameters:
+Name
+Type
+Description
+assets
+uint256
+The amount of underlying assets to withdraw.
+receiver
+address
+The address to which the underlying assets will be sent.
+owner
+address
+The address from which vault shares will be burned.
+Return Values:
+Type
+Description
+uint256
+The amount of vault shares burned for the withdrawal.
+withdrawATokens
+function withdrawATokens(uint256 assets, address receiver, address owner) public override returns (uint256)
+Withdraws 
+assets
+ (aTokens) directly from the vault and sends them to the 
+receiver
+. The corresponding vault shares are burned from the 
+owner
+.
+
+Input Parameters:
+Name
+Type
+Description
+assets
+uint256
+The amount of aTokens to withdraw.
+receiver
+address
+The address to which the aTokens will be sent.
+owner
+address
+The address from which vault shares will be burned.
+Return Values:
+Type
+Description
+uint256
+The amount of vault shares burned for the withdrawal.
+withdrawWithSig
+function withdrawWithSig(
+    uint256 assets,
+    address receiver,
+    address owner,
+    EIP712Signature calldata sig
+) public override returns (uint256)
+Withdraws 
+assets
+ (underlying tokens) from the vault and sends them to the 
+receiver
+. The corresponding vault shares are burned from the 
+owner
+, authenticated by an EIP-712 signature.
+
+Input Parameters:
+Name
+Type
+Description
+assets
+uint256
+The amount of underlying assets to withdraw.
+receiver
+address
+The address to which the underlying assets will be sent.
+owner
+address
+The address from which vault shares will be burned. This address must be the signatory.
+sig
+EIP712Signature
+The EIP-712 signature for the withdrawal transaction, including 
+v
+, 
+r
+, 
+s
+ parameters, and 
+deadline
+.	
+Return Values:
+Type
+Description
+uint256
+The amount of vault shares burned for the withdrawal.
+withdrawATokensWithSig
+function withdrawATokensWithSig(
+    uint256 assets,
+    address receiver,
+    address owner,
+    EIP712Signature calldata sig
+) public override returns (uint256)
+Withdraws 
+assets
+ (aTokens) directly from the vault and sends them to the 
+receiver
+. The corresponding vault shares are burned from the 
+owner
+, authenticated by an EIP-712 signature.
+
+Input Parameters:
+Name
+Type
+Description
+assets
+uint256
+The amount of aTokens to withdraw.
+receiver
+address
+The address to which the aTokens will be sent.
+owner
+address
+The address from which vault shares will be burned. This address must be the signatory.
+sig
+EIP712Signature
+The EIP-712 signature for the withdrawal transaction, including 
+v
+, 
+r
+, 
+s
+ parameters, and 
+deadline
+.	
+Return Values:
+Type
+Description
+uint256
+The amount of vault shares burned for the withdrawal.
+redeem
+function redeem(
+    uint256 shares,
+    address receiver,
+    address owner
+) public override returns (uint256)
+Redeems 
+shares
+ (vault shares) for the underlying assets, which are sent to the 
+receiver
+. The shares are burned from the 
+owner
+.
+
+Input Parameters:
+Name
+Type
+Description
+shares
+uint256
+The amount of vault shares to redeem.
+receiver
+address
+The address to which the underlying assets will be sent.
+owner
+address
+The address from which vault shares will be burned.
+Return Values:
+Type
+Description
+uint256
+The amount of underlying assets received for the shares.
+redeemAsATokens
+function redeemAsATokens(uint256 shares, address receiver, address owner) public override returns (uint256)
+Redeems 
+shares
+ (vault shares) for aTokens, which are sent to the 
+receiver
+. The shares are burned from the 
+owner
+.
+
+Input Parameters:
+Name
+Type
+Description
+shares
+uint256
+The amount of vault shares to redeem.
+receiver
+address
+The address to which the aTokens will be sent.
+owner
+address
+The address from which vault shares will be burned.
+Return Values:
+Type
+Description
+uint256
+The amount of aTokens received for the shares.
+redeemWithSig
+function redeemWithSig(
+    uint256 shares,
+    address receiver,
+    address owner,
+    EIP712Signature calldata sig
+) public override returns (uint256)
+Redeems 
+shares
+ (vault shares) for the underlying assets, which are sent to the 
+receiver
+. The shares are burned from the 
+owner
+, authenticated by an EIP-712 signature.
+
+Input Parameters:
+Name
+Type
+Description
+shares
+uint256
+The amount of vault shares to redeem.
+receiver
+address
+The address to which the underlying assets will be sent.
+owner
+address
+The address from which vault shares will be burned. This address must be the signatory.
+sig
+EIP712Signature
+The EIP-712 signature for the redemption transaction, including 
+v
+, 
+r
+, 
+s
+ parameters, and 
+deadline
+.	
+Return Values:
+Type
+Description
+uint256
+The amount of underlying assets received for the shares.
+redeemWithATokensWithSig
+function redeemWithATokensWithSig(
+    uint256 shares,
+    address receiver,
+    address owner,
+    EIP712Signature calldata sig
+) public override returns (uint256)
+Redeems 
+shares
+ (vault shares) for aTokens, which are sent to the 
+receiver
+. The shares are burned from the 
+owner
+, authenticated by an EIP-712 signature.
+
+Input Parameters:
+Name
+Type
+Description
+shares
+uint256
+The amount of vault shares to redeem.
+receiver
+address
+The address to which the aTokens will be sent.
+owner
+address
+The address from which vault shares will be burned. This address must be the signatory.
+sig
+EIP712Signature
+The EIP-712 signature for the redemption transaction, including 
+v
+, 
+r
+, 
+s
+ parameters, and 
+deadline
+.	
+Return Values:
+Type
+Description
+uint256
+The amount of aTokens received for the shares.
+setFee
+function setFee(uint256 newFee) public override onlyOwner
+Sets a new fee percentage for the vault. This function can only be called by the vault owner. Accrues current yield before updating the fee.
+
+Input Parameters:
+Name
+Type
+Description
+newFee
+uint256
+The new fee to set, expressed in wad, where (1 \times 10^18) is 100%.	
+withdrawFees
+function withdrawFees(address to, uint256 amount) public override onlyOwner
+Withdraws 
+amount
+ of accumulated fees (in aTokens) to the specified 
+to
+ address. This function can only be called by the vault owner. Accrues current yield before withdrawing fees.
+
+Input Parameters:
+Name
+Type
+Description
+to
+address
+The address to which the collected fees will be sent.
+amount
+uint256
+The amount of fees to withdraw.
+claimRewards
+function claimRewards(address to) public override onlyOwner
+Claims any pending rewards accumulated by the vault and sends them to the specified 
+to
+ address. This function can only be called by the vault owner.
+
+Input Parameters:
+Name
+Type
+Description
+to
+address
+The address to which the claimed rewards will be sent.
+emergencyRescue
+function emergencyRescue(
+    address token,
+    address to,
+    uint256 amount
+) public override onlyOwner
+Allows the vault owner to rescue an arbitrary 
+amount
+ of an ERC-20 
+token
+ that was mistakenly sent to the vault, transferring it to the 
+to
+ address. This function cannot be used to rescue the AToken that the vault is designed to hold.
+
+Input Parameters:
+Name
+Type
+Description
+token
+address
+The address of the ERC-20 token to rescue. Cannot be the vault's AToken.
+to
+address
+The address to which the rescued tokens will be sent.
+amount
+uint256
+The amount of tokens to rescue.
+View Methods
+maxDeposit
+function maxDeposit(address) public view override returns (uint256)
+Returns the maximum amount of underlying assets that can be deposited into the vault. This is determined by the Aave protocol's supply cap and the current supplied amount.
+
+Input Parameters:
+Name
+Type
+Description
+-
+address
+Placeholder for 
+receiver
+ (not used in computation).	
+Return Values:
+Type
+Description
+uint256
+The maximum amount of underlying assets that can be deposited.
+maxMint
+function maxMint(address) public view override returns (uint256)
+Returns the maximum amount of vault shares that can be minted. This is derived from the maximum suppliable assets converted to shares.
+
+Input Parameters:
+Name
+Type
+Description
+-
+address
+Placeholder for 
+receiver
+ (not used in computation).	
+Return Values:
+Type
+Description
+uint256
+The maximum amount of vault shares that can be minted.
+maxWithdraw
+function maxWithdraw(address owner) public view override returns (uint256)
+Returns the maximum amount of underlying assets that can be withdrawn by a specific 
+owner
+. This is limited by the vault's balance and Aave's available liquidity.
+
+Input Parameters:
+Name
+Type
+Description
+owner
+address
+The address of the share owner whose maximum withdrawal is being queried.
+Return Values:
+Type
+Description
+uint256
+The maximum amount of underlying assets that can be withdrawn.
+maxRedeem
+function maxRedeem(address owner) public view override returns (uint256)
+Returns the maximum amount of vault shares that can be redeemed by a specific 
+owner
+. This is limited by the vault's balance and Aave's available liquidity.
+
+Input Parameters:
+Name
+Type
+Description
+owner
+address
+The address of the share owner whose maximum redemption is being queried.
+Return Values:
+Type
+Description
+uint256
+The maximum amount of vault shares that can be redeemed.
+previewDeposit
+function previewDeposit(uint256 assets) public view override returns (uint256)
+Provides a preview of the amount of vault shares that would be minted for a given 
+assets
+ deposit.
+
+Input Parameters:
+Name
+Type
+Description
+assets
+uint256
+The amount of underlying assets to preview deposit for.
+Return Values:
+Type
+Description
+uint256
+The amount of vault shares that would be received.
+previewMint
+function previewMint(uint256 shares) public view override returns (uint256)
+Provides a preview of the amount of underlying assets that would be required to mint a given 
+shares
+ amount of vault shares.
+
+Input Parameters:
+Name
+Type
+Description
+shares
+uint256
+The amount of vault shares to preview mint for.
+Return Values:
+Type
+Description
+uint256
+The amount of underlying assets that would be required.
+previewWithdraw
+function previewWithdraw(uint256 assets) public view override returns (uint256)
+Provides a preview of the amount of vault shares that would be burned for a given 
+assets
+ withdrawal.
+
+Input Parameters:
+Name
+Type
+Description
+assets
+uint256
+The amount of underlying assets to preview withdrawal for.
+Return Values:
+Type
+Description
+uint256
+The amount of vault shares that would be burned.
+previewRedeem
+function previewRedeem(uint256 shares) public view override returns (uint256)
+Provides a preview of the amount of underlying assets that would be received for a given 
+shares
+ redemption.
+
+Input Parameters:
+Name
+Type
+Description
+shares
+uint256
+The amount of vault shares to preview redeem for.
+Return Values:
+Type
+Description
+uint256
+The amount of underlying assets that would be received.
+domainSeparator
+function domainSeparator() public view override returns (bytes32)
+Returns the EIP-712 domain separator for this contract.
+
+Return Values:
+Type
+Description
+bytes32
+The EIP-712 domain separator.
+totalAssets
+function totalAssets() public view override returns (uint256)
+Reports the total assets managed by the vault, net of fees, for vault share logic.
+
+Return Values:
+Type
+Description
+uint256
+The total amount of assets held by the vault (net of fees).
+getClaimableFees
+function getClaimableFees() public view override returns (uint256)
+Calculates and returns the total amount of fees that are currently claimable by the vault manager.
+
+Return Values:
+Type
+Description
+uint256
+The total amount of fees that can be claimed.
+getSigNonce
+function getSigNonce(address signer) public view override returns (uint256)
+Returns the current nonce for a given 
+signer
+ address, used for EIP-712 signatures to prevent replay attacks.
+
+Input Parameters:
+Name
+Type
+Description
+signer
+address
+The address whose EIP-712 signature nonce is being queried.
+Return Values:
+Type
+Description
+uint256
+The current nonce for the specified signer.
+getLastVaultBalance
+function getLastVaultBalance() public view override returns (uint256)
+Returns the last recorded balance of the vault's AToken. This value is updated when yield is accrued.
+
+Return Values:
+Type
+Description
+uint256
+The last recorded balance of ATokens held by the vault.
+getFee
+function getFee() public view override returns (uint256)
+Returns the current fee percentage set for the vault.
+
+Return Values:
+Type
+Description
+uint256
+The current fee, expressed in wad, where (1 \times 10^18) is 100%.

@@ -1,0 +1,20 @@
+/**
+ * Crossmint EmbeddedAuthForm header styling
+ *
+ * @crossmint/client-sdk-react-ui@4.1.5 does not expose props to align the
+ * header. The form renders authModalTitle ("Sign in via Crossmint", set on
+ * CrossmintAuthProvider) + the subtitle "Access using one of the options
+ * below." as the first child block when step === "initial".
+ *
+ * We center that header block. We intentionally avoid :has() selectors here:
+ * they are unsupported in some mobile in-app webviews, which previously left
+ * the header unstyled on those devices.
+ *
+ * DOM assumption (re-test the login modal after any
+ * @crossmint/client-sdk-react-ui upgrade):
+ * - Root > div (form container) > div:first-child is the title/subtitle block.
+ */
+.crossmintFormWrap > div > div:first-child,
+.crossmintFormWrap > div > div:first-child > * {
+  text-align: center !important;
+}
