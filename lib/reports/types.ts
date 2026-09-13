@@ -10,7 +10,7 @@ export type TransactionType =
   | "borrow"
   | "repay";
 
-export type TransactionSource = "coinbase" | "crossmint" | "aave" | "yearn";
+export type TransactionSource = "coinbase" | "privy" | "aave" | "yearn";
 
 export interface ReportTransaction {
   date: string;

@@ -3,7 +3,7 @@
 import { useMemo, useState, useCallback, Fragment } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { useWallet } from "@crossmint/client-sdk-react-ui";
+import { useAppWallet } from "@/hooks/useAppWallet";
 import {
   bigDecimal,
   evmAddress,
@@ -448,7 +448,7 @@ function LendingContent({
 }
 
 export default function LendingPage() {
-  const { wallet, status: walletStatus } = useWallet();
+  const { status: walletStatus, address } = useAppWallet();
   const { status: authStatus } = useAuth();
   const membership = useMembership();
   const baseReserve = useBaseUsdcReserve();
@@ -460,15 +460,15 @@ export default function LendingPage() {
   const walletUsdcBalance = balances?.usdc?.amount ?? "0";
 
   const walletAddress = useMemo(() => {
-    if (!wallet || authStatus !== "logged-in" || !wallet.address) return null;
-    return wallet.address;
-  }, [authStatus, wallet]);
+    if (!address || authStatus !== "logged-in") return null;
+    return address;
+  }, [authStatus, address]);
 
   const walletStatusLabel = useMemo(() => {
     if (walletStatus === "in-progress" || authStatus === "initializing") return "Connecting...";
-    if (!wallet || authStatus !== "logged-in") return "Not connected";
-    return shortenAddress(wallet.address ?? "");
-  }, [authStatus, wallet, walletStatus]);
+    if (!address || authStatus !== "logged-in") return "Not connected";
+    return shortenAddress(address);
+  }, [authStatus, address, walletStatus]);
 
   const handleRefresh = useCallback(() => {
     setRefreshKey((k) => k + 1);

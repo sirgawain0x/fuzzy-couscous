@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { useWallet } from "@crossmint/client-sdk-react-ui";
+import { useAppWallet } from "@/hooks/useAppWallet";
 import { getTransactions } from "@/server-actions/getTransactions";
 
 export function WithdrawalStatus() {
-  const { wallet } = useWallet();
+  const { wallet } = useAppWallet();
   const [pendingTransaction, setPendingTransaction] = useState<any>(null);
   const [isChecking, setIsChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);

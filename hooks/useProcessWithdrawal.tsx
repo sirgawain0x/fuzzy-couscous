@@ -1,8 +1,8 @@
 import { useEffect } from "react";
-import { Chain, Wallet } from "@crossmint/client-sdk-react-ui";
 import { getTransactions } from "@/server-actions/getTransactions";
 import { useBalance } from "./useBalance";
 import { useActivityFeed } from "./useActivityFeed";
+import type { AppWallet } from "@/hooks/useAppWallet";
 import {
   formatRecipientLabel,
   normalizeTxErrorMessage,
@@ -29,27 +29,23 @@ const setProccesedTransactions = (transactionId: string) => {
   }
 };
 
-export function useProcessWithdrawal(userId?: string, wallet?: Wallet<Chain>) {
+export function useProcessWithdrawal(walletAddress?: string, wallet?: AppWallet | null) {
   const { refetch: refetchBalance } = useBalance();
   const { refetch: refetchActivityFeed } = useActivityFeed();
 
   useEffect(() => {
-    if (!userId || !wallet) {
+    if (!walletAddress || !wallet) {
       return;
     }
 
     const processWithdrawal = async () => {
       try {
-        console.log("Checking for pending withdrawal transactions...");
-        const transactions = await getTransactions(userId);
+        const transactions = await getTransactions(walletAddress);
 
-        // Add proper null/undefined checks
         if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
-          console.log("No transactions found for user:", userId);
           return;
         }
 
-        // Look for the most recent transaction that needs processing
         const pendingTransaction = transactions.find(
           (transaction) =>
             transaction?.status === "TRANSACTION_STATUS_STARTED" &&
@@ -57,65 +53,53 @@ export function useProcessWithdrawal(userId?: string, wallet?: Wallet<Chain>) {
             !getProccesedTransactions(transaction.transaction_id)
         );
 
-        if (pendingTransaction) {
-          console.log("Processing withdrawal transaction:", pendingTransaction.transaction_id);
+        if (!pendingTransaction) return;
 
-          // Mark as processed to prevent duplicate processing
-          setProccesedTransactions(pendingTransaction.transaction_id);
+        setProccesedTransactions(pendingTransaction.transaction_id);
 
-          try {
-            const sendResult = await wallet.send(
-              pendingTransaction.to_address,
-              "usdc",
-              pendingTransaction.sell_amount.value
-            );
+        try {
+          const sendResult = await wallet.send(
+            pendingTransaction.to_address,
+            "usdc",
+            pendingTransaction.sell_amount.value
+          );
 
-            const amount = pendingTransaction.sell_amount.value;
-            showTxSuccessToast({
-              title: "Withdrawal sent",
-              description: `Sent $${amount} USDC to ${formatRecipientLabel(pendingTransaction.to_address)}`,
-              txHash: sendResult?.hash,
-              explorerLink: sendResult?.explorerLink,
-            });
+          const amount = pendingTransaction.sell_amount.value;
+          showTxSuccessToast({
+            title: "Withdrawal sent",
+            description: `Sent $${amount} USDC to ${formatRecipientLabel(pendingTransaction.to_address)}`,
+            txHash: sendResult?.hash,
+            explorerLink: sendResult?.explorerLink,
+          });
 
-            await Promise.all([refetchBalance(), refetchActivityFeed()]);
-          } catch (sendError) {
-            const message = normalizeTxErrorMessage(sendError, "Withdrawal send failed");
-            showTxErrorToast({
-              title:
-                message === "Transaction was cancelled"
-                  ? "Transaction cancelled"
-                  : "Withdrawal failed",
-              description: message,
-            });
-            throw sendError;
-          }
-        } else {
-          console.log("No pending withdrawal transactions found");
+          await Promise.all([refetchBalance(), refetchActivityFeed()]);
+        } catch (sendError) {
+          const message = normalizeTxErrorMessage(sendError, "Withdrawal send failed");
+          showTxErrorToast({
+            title:
+              message === "Transaction was cancelled"
+                ? "Transaction cancelled"
+                : "Withdrawal failed",
+            description: message,
+          });
+          throw sendError;
         }
       } catch (error) {
-        console.error("Error processing withdrawal:", error);
-
-        // Handle specific error cases more gracefully
         if (error instanceof Error) {
           if (error.message.includes("credentials") || error.message.includes("API keys")) {
-            console.log("Coinbase API not configured - withdrawal processing disabled");
-            return; // Silently return, don't throw
-          } else if (error.message.includes("production") || error.message.includes("enabled")) {
-            console.log("Withdrawal processing not available in current environment");
-            return; // Silently return, don't throw
-          } else if (error.message.includes("network") || error.message.includes("fetch")) {
-            console.warn("Network error while processing withdrawal - will retry later");
-            return; // Silently return, don't throw
+            return;
+          }
+          if (error.message.includes("production") || error.message.includes("enabled")) {
+            return;
+          }
+          if (error.message.includes("network") || error.message.includes("fetch")) {
+            return;
           }
         }
-
-        // For other unexpected errors, log but don't crash the app
         console.warn("Unexpected error in withdrawal processing:", error);
       }
     };
 
-    // Run the withdrawal processing
-    processWithdrawal();
-  }, [userId, wallet, refetchBalance, refetchActivityFeed]);
+    void processWithdrawal();
+  }, [walletAddress, wallet, refetchBalance, refetchActivityFeed]);
 }

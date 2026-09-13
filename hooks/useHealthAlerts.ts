@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useWallet } from "@crossmint/client-sdk-react-ui";
+import { useAppWallet } from "@/hooks/useAppWallet";
 import { useAuth } from "@/context/AuthContext";
 
 interface HealthAlert {
@@ -20,7 +20,7 @@ interface HealthAlert {
  * Returns alert data and an acknowledge function.
  */
 export function useHealthAlerts() {
-  const { wallet } = useWallet();
+  const { wallet } = useAppWallet();
   const { sessionToken } = useAuth();
   const queryClient = useQueryClient();
   const walletAddress = wallet?.address;

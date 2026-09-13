@@ -12,7 +12,7 @@ import {
 import { Address } from "viem";
 import { useAccount } from "wagmi";
 import { useAuth } from "@/context/AuthContext";
-import { useWallet } from "@crossmint/client-sdk-react-ui";
+import { useAppWallet } from "@/hooks/useAppWallet";
 
 import { MEMBERSHIP_LOCKS, MembershipTier } from "@/lib/config/memberships";
 import { fetchUnlockMembershipStates } from "@/lib/services/unlockMemberships";
@@ -60,7 +60,7 @@ const initialLockState = createInitialLockState();
 
 export function MembershipProvider({ children }: { children: React.ReactNode }) {
   const { address } = useAccount();
-  const { wallet, status: walletStatus } = useWallet();
+  const { address: appWalletAddress, status: walletStatus } = useAppWallet();
   const { status: authStatus } = useAuth();
   const [state, setState] = useState<Omit<MembershipContextValue, "refresh">>({
     tier: null,
@@ -73,16 +73,14 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
     console.log("[MembershipContext] ========================================");
     console.log("[MembershipContext] Computing active address");
     console.log("[MembershipContext] Wagmi address:", address);
-    console.log("[MembershipContext] Crossmint wallet address:", wallet?.address);
+    console.log("[MembershipContext] App wallet address:", appWalletAddress);
     console.log("[MembershipContext] Auth status:", authStatus);
     console.log("[MembershipContext] Wallet status:", walletStatus);
-    console.log("[MembershipContext] Has wallet object:", !!wallet);
 
-    // Crossmint wallet takes priority
-    if (wallet?.address) {
-      console.log("[MembershipContext] ✓ Using Crossmint wallet address:", wallet.address);
+    if (appWalletAddress) {
+      console.log("[MembershipContext] ✓ Using embedded wallet address:", appWalletAddress);
       console.log("[MembershipContext] ========================================");
-      return wallet.address as Address;
+      return appWalletAddress as Address;
     }
 
     // Fallback to wagmi address (for browser wallet connections)
@@ -92,7 +90,6 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
       return address;
     }
 
-    // Only wait if Crossmint is still initializing and we don't have any address yet
     if (authStatus === "initializing" || walletStatus === "not-loaded") {
       console.log("[MembershipContext] ⏳ Wallet still loading, waiting...");
     } else {
@@ -101,7 +98,7 @@ export function MembershipProvider({ children }: { children: React.ReactNode }) 
     console.log("[MembershipContext] ========================================");
 
     return null;
-  }, [address, authStatus, wallet, walletStatus]);
+  }, [address, authStatus, appWalletAddress, walletStatus]);
 
   const applyResults = useCallback((locks: Record<MembershipTier, MembershipLockState>) => {
     console.log("[MembershipContext] ========================================");

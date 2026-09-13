@@ -4,7 +4,7 @@ import { getPool } from "@/lib/cockroachdb";
 
 /**
  * GET /api/user/profile
- * Returns stored profile fields for the authenticated Crossmint user.
+ * Returns stored profile fields for the authenticated Privy user.
  */
 export async function GET(request: NextRequest) {
   const auth = await requireAuthedWallet(request);
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     const pool = getPool();
     const { rows } = await pool.query(
       `SELECT email, email_verified_at, phone_number, phone_number_verified_at
-       FROM users WHERE crossmint_user_id = $1 LIMIT 1`,
+       FROM users WHERE privy_user_id = $1 LIMIT 1`,
       [auth.session.userId]
     );
 

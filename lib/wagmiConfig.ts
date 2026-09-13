@@ -1,4 +1,5 @@
-import { createConfig, createStorage, fallback, http, noopStorage } from "wagmi";
+import { createConfig } from "@privy-io/wagmi";
+import { createStorage, fallback, http, noopStorage } from "wagmi";
 import { createClient } from "viem";
 import { injected, walletConnect } from "wagmi/connectors";
 import { base, baseSepolia, mainnet } from "wagmi/chains";

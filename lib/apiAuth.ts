@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPool } from "@/lib/cockroachdb";
-import { verifyCrossmintJwt } from "@/lib/crossmintAuth";
+import { verifyPrivyAccessToken } from "@/lib/privyAuth";
 
 export type AuthedSession = {
   userId: string;
@@ -10,10 +10,10 @@ export type AuthedSession = {
 type AuthResult = { ok: true; session: AuthedSession } | { ok: false; response: NextResponse };
 
 /**
- * Validates a Crossmint JWT and resolves the authed user's wallet from CockroachDB.
+ * Validates a Privy access token and resolves the authed user's wallet from CockroachDB.
  * Token is read from (in order):
  *   1. `Authorization: Bearer <jwt>` header
- *   2. `x-crossmint-auth-token` header
+ *   2. `x-privy-auth-token` header
  *   3. `bodyAuthToken` argument (legacy sessionToken field in POST bodies)
  */
 export async function requireAuthedWallet(
@@ -22,7 +22,7 @@ export async function requireAuthedWallet(
 ): Promise<AuthResult> {
   const token =
     extractBearer(request.headers.get("authorization")) ??
-    request.headers.get("x-crossmint-auth-token") ??
+    request.headers.get("x-privy-auth-token") ??
     (typeof bodyAuthToken === "string" ? bodyAuthToken : null);
 
   if (!token) {
@@ -34,7 +34,7 @@ export async function requireAuthedWallet(
 
   let userId: string;
   try {
-    const verified = await verifyCrossmintJwt(token);
+    const verified = await verifyPrivyAccessToken(token);
     userId = verified.userId;
   } catch {
     return {
@@ -52,7 +52,7 @@ export async function requireAuthedWallet(
 
   const pool = getPool();
   const { rows } = await pool.query(
-    `SELECT wallet_address FROM users WHERE crossmint_user_id = $1 LIMIT 1`,
+    `SELECT wallet_address FROM users WHERE privy_user_id = $1 LIMIT 1`,
     [userId]
   );
 

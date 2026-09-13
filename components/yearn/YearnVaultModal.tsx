@@ -1,11 +1,10 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Address, formatUnits, createWalletClient, custom, type WalletClient } from "viem";
-import { useAccount, useWalletClient } from "wagmi";
+import { Address, formatUnits } from "viem";
 import { useAuth } from "@/context/AuthContext";
-import { useWallet, EVMWallet } from "@crossmint/client-sdk-react-ui";
-import { base } from "viem/chains";
+import { useAppWallet } from "@/hooks/useAppWallet";
+import { useAaveWalletClient } from "@/hooks/useAaveWalletClient";
 import {
   normalizeTxErrorMessage,
   showTxErrorToast,
@@ -52,90 +51,10 @@ export const YearnVaultModal = ({
   shareDecimals = 18,
   isBalanceLoading = false,
 }: YearnVaultModalProps) => {
-  const { address: wagmiAddress } = useAccount();
-  const { data: wagmiWalletClient } = useWalletClient();
-  const { wallet: crossmintWallet, status: walletStatus } = useWallet();
+  const { address, status: walletStatus } = useAppWallet();
+  const userAddress = address as `0x${string}` | undefined;
+  const walletClient = useAaveWalletClient();
   const { status: authStatus } = useAuth();
-
-  // Determine active address (Crossmint takes priority, fallback to wagmi)
-  const userAddress = useMemo(() => {
-    if (crossmintWallet?.address) {
-      return crossmintWallet.address as `0x${string}`;
-    }
-    return wagmiAddress;
-  }, [crossmintWallet?.address, wagmiAddress]);
-
-  // Create wallet client from Crossmint wallet if available, otherwise use wagmi client
-  const walletClient = useMemo((): WalletClient | undefined => {
-    // If we have a Crossmint wallet, create a viem wallet client adapter
-    if (crossmintWallet) {
-      try {
-        const evmWallet = EVMWallet.from(crossmintWallet);
-        // Yearn/Kalani vaults are on Base mainnet only; always use base for this modal
-        const chain = base;
-
-        // Create a custom wallet client that uses Crossmint's EVMWallet for transactions
-        return createWalletClient({
-          chain,
-          transport: custom({
-            async request({ method, params }) {
-              // Handle transaction sending through Crossmint's EVMWallet
-              if (method === "eth_sendTransaction" && params?.[0]) {
-                const tx = params[0] as {
-                  to?: string;
-                  value?: string;
-                  data?: string;
-                  gas?: string;
-                  gasPrice?: string;
-                  maxFeePerGas?: string;
-                  maxPriorityFeePerGas?: string;
-                };
-
-                // Validate required fields
-                if (!tx.to) {
-                  throw new Error("Transaction 'to' address is required");
-                }
-
-                // Convert viem transaction format to Crossmint format
-                const valueHex = tx.value || "0x0";
-                const valueBigInt = BigInt(valueHex);
-
-                const transaction = {
-                  to: tx.to as `0x${string}`,
-                  value: valueBigInt,
-                  data: (tx.data || "0x") as `0x${string}`,
-                };
-
-                // Send transaction using Crossmint's EVMWallet
-                const result = await evmWallet.sendTransaction(transaction);
-
-                // Return the transaction hash in the format viem expects
-                return result.hash;
-              }
-
-              // Handle account requests
-              if (method === "eth_accounts" || method === "eth_requestAccounts") {
-                return [crossmintWallet.address];
-              }
-
-              // Handle chain ID requests
-              if (method === "eth_chainId") {
-                return `0x${chain.id.toString(16)}`;
-              }
-
-              // For other methods, you might need to implement them or throw
-              throw new Error(`Method ${method} not yet supported with Crossmint wallet adapter`);
-            },
-          }),
-        });
-      } catch (error) {
-        console.error("Failed to create wallet client from Crossmint wallet:", error);
-      }
-    }
-
-    // Fallback to wagmi wallet client
-    return wagmiWalletClient ?? undefined;
-  }, [crossmintWallet, wagmiWalletClient]);
 
   const [inputAmount, setInputAmount] = useState("");
   const [maxLossPercent, setMaxLossPercent] = useState(1); // Default 1% max loss

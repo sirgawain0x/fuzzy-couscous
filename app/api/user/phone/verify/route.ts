@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     const { rows } = await pool.query(
       `SELECT phone_number, code_hash, expires_at
        FROM phone_otp_challenges
-       WHERE crossmint_user_id = $1
+       WHERE privy_user_id = $1
        LIMIT 1`,
       [auth.session.userId]
     );
@@ -59,16 +59,16 @@ export async function POST(request: NextRequest) {
     const verifiedAt = new Date().toISOString();
 
     await pool.query(
-      `INSERT INTO users (crossmint_user_id, wallet_address, phone_number, phone_number_verified_at, updated_at)
+      `INSERT INTO users (privy_user_id, wallet_address, phone_number, phone_number_verified_at, updated_at)
        VALUES ($1, $2, $3, $4, now())
-       ON CONFLICT (crossmint_user_id) DO UPDATE SET
+       ON CONFLICT (privy_user_id) DO UPDATE SET
          phone_number = EXCLUDED.phone_number,
          phone_number_verified_at = EXCLUDED.phone_number_verified_at,
          updated_at = now()`,
       [auth.session.userId, auth.session.walletAddress, normalized, verifiedAt]
     );
 
-    await pool.query(`DELETE FROM phone_otp_challenges WHERE crossmint_user_id = $1`, [
+    await pool.query(`DELETE FROM phone_otp_challenges WHERE privy_user_id = $1`, [
       auth.session.userId,
     ]);
 

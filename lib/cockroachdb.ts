@@ -37,7 +37,7 @@ export function getPool(): Pool {
  * Safe to call multiple times — all statements use IF NOT EXISTS.
  *
  * Schema design:
- * - `users` table: Crossmint user_id is the primary key, linked to wallet address
+ * - `users` table: Privy user_id is the primary key, linked to wallet address
  * - `transactions` table: Ledger entries keyed by wallet_address for lookups
  */
 export async function runMigration(): Promise<void> {
@@ -68,10 +68,10 @@ export async function runMigration(): Promise<void> {
     }
   };
 
-  // Users table — Crossmint user ID is the primary identity
+  // Users table — Privy user ID is the primary identity
   await db.query(`
     CREATE TABLE IF NOT EXISTS users (
-      crossmint_user_id TEXT PRIMARY KEY,
+      privy_user_id TEXT PRIMARY KEY,
       wallet_address TEXT NOT NULL,
       email TEXT,
       phone_number TEXT,
@@ -82,8 +82,9 @@ export async function runMigration(): Promise<void> {
     );
   `);
 
-  // Migrate legacy Stytch column name if present (CockroachDB rejects ALTER in DO blocks)
+  // Migrate legacy column names if present (CockroachDB rejects ALTER in DO blocks)
   await renameColumnIfNeeded("users", "stytch_user_id", "crossmint_user_id");
+  await renameColumnIfNeeded("users", "crossmint_user_id", "privy_user_id");
 
   await db.query(`
     ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_number_verified_at TIMESTAMPTZ;
@@ -95,7 +96,7 @@ export async function runMigration(): Promise<void> {
 
   await db.query(`
     CREATE TABLE IF NOT EXISTS phone_otp_challenges (
-      crossmint_user_id TEXT PRIMARY KEY,
+      privy_user_id TEXT PRIMARY KEY,
       phone_number TEXT NOT NULL,
       code_hash TEXT NOT NULL,
       expires_at TIMESTAMPTZ NOT NULL,
@@ -103,13 +104,15 @@ export async function runMigration(): Promise<void> {
     );
   `);
 
+  await renameColumnIfNeeded("phone_otp_challenges", "crossmint_user_id", "privy_user_id");
+
   await db.query(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_users_wallet_address
     ON users (wallet_address);
   `);
 
   await db.query(`
-    ALTER TABLE users ADD COLUMN IF NOT EXISTS crossmint_user_id TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS privy_user_id TEXT;
   `);
 
   await db.query(`
@@ -117,9 +120,9 @@ export async function runMigration(): Promise<void> {
   `);
 
   await db.query(`
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_users_crossmint_user_id
-    ON users (crossmint_user_id)
-    WHERE crossmint_user_id IS NOT NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_users_privy_user_id
+    ON users (privy_user_id)
+    WHERE privy_user_id IS NOT NULL;
   `);
 
   // Transactions table — the bank ledger
@@ -127,7 +130,7 @@ export async function runMigration(): Promise<void> {
     CREATE TABLE IF NOT EXISTS transactions (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       wallet_address TEXT NOT NULL,
-      crossmint_user_id TEXT,
+      privy_user_id TEXT,
       transaction_id TEXT NOT NULL UNIQUE,
       type TEXT NOT NULL DEFAULT 'offramp',
       status TEXT NOT NULL DEFAULT 'unknown',
@@ -151,10 +154,11 @@ export async function runMigration(): Promise<void> {
   `);
 
   await renameColumnIfNeeded("transactions", "stytch_user_id", "crossmint_user_id");
+  await renameColumnIfNeeded("transactions", "crossmint_user_id", "privy_user_id");
 
   await db.query(`
-    CREATE INDEX IF NOT EXISTS idx_transactions_crossmint_user_id
-    ON transactions (crossmint_user_id);
+    CREATE INDEX IF NOT EXISTS idx_transactions_privy_user_id
+    ON transactions (privy_user_id);
   `);
 
   await db.query(`
@@ -181,13 +185,13 @@ export async function runMigration(): Promise<void> {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS collateral_assets JSONB DEFAULT '[]';
   `);
 
-  // Webhook events — audit trail for Crossmint + Goldsky
+  // Webhook events — audit trail for external integrations + Goldsky
   await db.query(`
     CREATE TABLE IF NOT EXISTS webhook_events (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       event_type TEXT NOT NULL,
       event_id TEXT NOT NULL UNIQUE,
-      source TEXT NOT NULL DEFAULT 'crossmint',
+      source TEXT NOT NULL DEFAULT 'privy',
       payload JSONB NOT NULL,
       wallet_address TEXT,
       status TEXT NOT NULL DEFAULT 'received',

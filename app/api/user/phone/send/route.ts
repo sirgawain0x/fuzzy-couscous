@@ -49,9 +49,9 @@ export async function POST(request: NextRequest) {
     const pool = getPool();
 
     await pool.query(
-      `INSERT INTO phone_otp_challenges (crossmint_user_id, phone_number, code_hash, expires_at)
+      `INSERT INTO phone_otp_challenges (privy_user_id, phone_number, code_hash, expires_at)
        VALUES ($1, $2, $3, $4)
-       ON CONFLICT (crossmint_user_id) DO UPDATE SET
+       ON CONFLICT (privy_user_id) DO UPDATE SET
          phone_number = EXCLUDED.phone_number,
          code_hash = EXCLUDED.code_hash,
          expires_at = EXCLUDED.expires_at,

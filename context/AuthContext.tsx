@@ -9,14 +9,13 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useCrossmintAuth } from "@crossmint/client-sdk-react-ui";
+import { usePrivy } from "@privy-io/react-auth";
 
 type AuthStatus = "logged-out" | "logged-in" | "initializing";
 
 interface AuthUser {
   id: string;
   email: string;
-  /** Set when the user signed in with Crossmint email OTP (no extra deposit step). */
   emailVerifiedAt?: string;
   phoneNumber?: string;
   phoneNumberVerifiedAt?: string;
@@ -37,38 +36,46 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const mapCrossmintStatus = (status: string): AuthStatus => {
-  if (status === "logged-in") return "logged-in";
-  if (status === "logged-out") return "logged-out";
-  return "initializing";
+const mapPrivyStatus = (ready: boolean, authenticated: boolean): AuthStatus => {
+  if (!ready) return "initializing";
+  if (authenticated) return "logged-in";
+  return "logged-out";
 };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const {
-    status: crossmintStatus,
-    user: crossmintUser,
-    jwt,
-    logout: crossmintLogout,
-    getUser,
-  } = useCrossmintAuth();
+  const { ready, authenticated, user: privyUser, logout: privyLogout, getAccessToken, login: privyLogin } =
+    usePrivy();
 
   const [showLogin, setShowLogin] = useState(false);
+  const [jwt, setJwt] = useState<string | null>(null);
   const [emailVerifiedAt, setEmailVerifiedAt] = useState<string | undefined>();
   const [phoneNumberVerifiedAt, setPhoneNumberVerifiedAt] = useState<string | undefined>();
 
-  const status = mapCrossmintStatus(crossmintStatus);
+  const status = mapPrivyStatus(ready, authenticated);
 
   const user: AuthUser | null = useMemo(() => {
-    if (!crossmintUser) return null;
+    if (!privyUser) return null;
+
+    const emailAccount = privyUser.email?.address ?? privyUser.google?.email ?? "";
+    const phoneAccount = privyUser.phone?.number;
 
     return {
-      id: crossmintUser.id,
-      email: crossmintUser.email ?? "",
+      id: privyUser.id,
+      email: emailAccount,
       emailVerifiedAt,
-      phoneNumber: crossmintUser.phoneNumber,
+      phoneNumber: phoneAccount,
       phoneNumberVerifiedAt,
     };
-  }, [crossmintUser, emailVerifiedAt, phoneNumberVerifiedAt]);
+  }, [privyUser, emailVerifiedAt, phoneNumberVerifiedAt]);
+
+  useEffect(() => {
+    if (!authenticated) {
+      setJwt(null);
+      return;
+    }
+
+    void getAccessToken().then((token) => setJwt(token));
+  }, [authenticated, getAccessToken, privyUser?.id]);
 
   const refreshUserProfile = useCallback(async () => {
     if (!jwt) {
@@ -97,36 +104,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (status === "logged-in") {
-      getUser();
       void refreshUserProfile();
     } else {
       setEmailVerifiedAt(undefined);
       setPhoneNumberVerifiedAt(undefined);
     }
-  }, [status, getUser, refreshUserProfile]);
+  }, [status, refreshUserProfile]);
 
   const login = useCallback(() => {
     setShowLogin(true);
-  }, []);
+    privyLogin();
+  }, [privyLogin]);
 
   const logout = useCallback(async () => {
     try {
-      await crossmintLogout();
+      await privyLogout();
     } catch {
       // Session may already be expired
     }
+    setJwt(null);
     setEmailVerifiedAt(undefined);
     setPhoneNumberVerifiedAt(undefined);
-    // Show login modal immediately — Login only renders CrossmintLoginModal (no page chrome).
     setShowLogin(true);
-  }, [crossmintLogout]);
+  }, [privyLogout]);
 
   const value: AuthContextValue = useMemo(
     () => ({
       status,
       user,
-      jwt: jwt ?? null,
-      sessionToken: jwt ?? null,
+      jwt,
+      sessionToken: jwt,
       login,
       logout,
       showLogin,

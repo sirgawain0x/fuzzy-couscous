@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { useWallet } from "@crossmint/client-sdk-react-ui";
+import { useAppWallet } from "@/hooks/useAppWallet";
 import { useAuth } from "@/context/AuthContext";
 import type { EarningsReport as EarningsReportType } from "@/lib/reports/types";
 import { TransactionTable } from "./TransactionTable";
@@ -16,7 +16,7 @@ interface EarningsReportProps {
 }
 
 export function EarningsReport({ open, onClose }: EarningsReportProps) {
-  const { wallet } = useWallet();
+  const { wallet } = useAppWallet();
   const { sessionToken } = useAuth();
   const [report, setReport] = useState<EarningsReportType | null>(null);
   const [isLoading, setIsLoading] = useState(false);
