@@ -1,0 +1,10 @@
+{
+  "name": "Creative Bank (Next.js 16)",
+  "install": "export NVM_DIR=\"/home/ubuntu/.nvm\" && [ -s \"$NVM_DIR/nvm.sh\" ] && . \"$NVM_DIR/nvm.sh\"; corepack enable >/dev/null 2>&1 || true; pnpm install --frozen-lockfile",
+  "terminals": [
+    {
+      "name": "dev-server",
+      "command": "export NVM_DIR=\"/home/ubuntu/.nvm\" && [ -s \"$NVM_DIR/nvm.sh\" ] && . \"$NVM_DIR/nvm.sh\"; pnpm dev"
+    }
+  ]
+}
