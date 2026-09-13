@@ -13,11 +13,13 @@ import { Dropdown } from "../common/Dropdown";
 import { useState, useEffect, useRef } from "react";
 import { WalletDetails } from "./WalletDetails";
 import { useAuth } from "@/context/AuthContext";
-import { useWallet } from "@crossmint/client-sdk-react-ui";
+import { useAppWallet } from "@/hooks/useAppWallet";
 import { WarningModal } from "./WarningModal";
 import createCoinbaseSessionToken from "@/server-actions/createCoinbaseSessionToken";
 import { checkCoinbaseConfig } from "@/server-actions/checkCoinbaseConfig";
 import { EarningsReport } from "@/components/reports/EarningsReport";
+import { appChain } from "@/lib/wagmiConfig";
+import { baseSepolia } from "viem/chains";
 
 interface DashboardSummaryProps {
   onDepositClick: () => void;
@@ -27,7 +29,7 @@ interface DashboardSummaryProps {
 export function DashboardSummary({ onDepositClick, onSendClick }: DashboardSummaryProps) {
   const [showWalletDetails, setShowWalletDetails] = useState(false);
   const [showReports, setShowReports] = useState(false);
-  const { wallet } = useWallet();
+  const { wallet } = useAppWallet();
   const { user } = useAuth();
   const [openWarningModal, setOpenWarningModal] = useState(false);
   const [isWithdrawing, setIsWithdrawing] = useState(false);
@@ -88,19 +90,22 @@ export function DashboardSummary({ onDepositClick, onSendClick }: DashboardSumma
           return;
         }
 
-        if (!wallet?.address || !wallet?.chain) {
+        if (!wallet?.address) {
           console.error("Missing wallet or user information for withdrawal");
           setWithdrawalStatus("Missing wallet information");
           setTimeout(() => setWithdrawalStatus(null), 3000);
           return;
         }
 
+        const walletChain =
+          appChain.id === baseSepolia.id ? "base-sepolia" : appChain.name.toLowerCase();
+
         // Check if wallet is on a testnet - Coinbase Offramp only works with mainnet
         const testnetChains = ["base-sepolia", "sepolia", "goerli", "mumbai"];
-        const isTestnet = testnetChains.includes(wallet.chain.toLowerCase());
+        const isTestnet = testnetChains.includes(walletChain);
 
         if (isTestnet) {
-          console.warn("Withdrawal attempted on testnet:", wallet.chain);
+          console.warn("Withdrawal attempted on testnet:", walletChain);
           setWithdrawalStatus("Withdrawals only work on mainnet. Please switch to Base mainnet.");
           setTimeout(() => setWithdrawalStatus(null), 5000);
           return;
@@ -120,18 +125,18 @@ export function DashboardSummary({ onDepositClick, onSendClick }: DashboardSumma
             optimism: "optimism",
           };
 
-          const normalizedChain = chainMapping[wallet.chain.toLowerCase()];
+          const normalizedChain = chainMapping[walletChain];
 
           if (!normalizedChain) {
-            console.error("Unsupported chain for withdrawal:", wallet.chain);
-            setWithdrawalStatus(`Withdrawals not supported on ${wallet.chain}`);
+            console.error("Unsupported chain for withdrawal:", walletChain);
+            setWithdrawalStatus(`Withdrawals not supported on ${walletChain}`);
             setTimeout(() => setWithdrawalStatus(null), 5000);
             setIsWithdrawing(false);
             return;
           }
 
           console.log("=== Withdrawal Debug Info ===", {
-            originalChain: wallet.chain,
+            originalChain: walletChain,
             normalizedChain,
             address: wallet.address,
             assets: ["USDC"],

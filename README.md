@@ -25,7 +25,7 @@
 
 ## Introduction
 
-Create your own Fintech app in minutes using **[Crossmint](https://crossmint.com)** wallets and onramp.
+Creative Bank v2 — a DeFi fintech app on Base using **[Privy](https://privy.io)** embedded wallets and **[Alchemy](https://alchemy.com)** infrastructure.
 
 **Key features**
 
@@ -36,7 +36,7 @@ Create your own Fintech app in minutes using **[Crossmint](https://crossmint.com
 - View your wallet activity
 - Withdraw USDC to your bank account
 - Support for Base mainnet (automatically enforced in production) and Base Sepolia testnet (development only)
-- Passkey-based wallet security
+- Privy embedded wallet security
 - Leverage more than +200 onchain tools integrating [GOAT](https://github.com/goat-sdk/goat)
 
 **DeFi Strategies** 🚀
@@ -56,20 +56,20 @@ See the [Yearn V3 Integration Guide](./docs/YEARN_V3_INTEGRATION.md) and [Quick 
 
 Get in touch with us to get early access to these features!
 
-Join our [Telegram community](https://t.me/crossmintdevs) to stay updated on the latest features and announcements.
+Join our [Telegram community](https://t.me/thecrtv) to stay updated on the latest features and announcements.
 
 ## Deploy
 
 Easily deploy the template to Vercel with the button below. You will need to set the required environment variables in the Vercel dashboard.
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FCrossmint%2Ffintech-starter-app&env=NEXT_PUBLIC_CROSSMINT_CLIENT_API_KEY,NEXT_PUBLIC_CHAIN_ID,NEXT_PUBLIC_USDC_MINT)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fg2-1%2Ffuzzy-couscous&env=NEXT_PUBLIC_PRIVY_APP_ID,PRIVY_APP_SECRET,ALCHEMY_API_KEY,NEXT_PUBLIC_CHAIN_ID,NEXT_PUBLIC_USDC_MINT)
 
 ## Setup
 
 1. Clone the repository and navigate to the project folder:
 
 ```bash
-git clone https://github.com/crossmint/fintech-starter-app.git && cd fintech-starter-app
+git clone https://github.com/g2-1/fuzzy-couscous.git && cd fuzzy-couscous
 ```
 
 2. Install all dependencies:
@@ -90,10 +90,12 @@ bun install
 cp .env.template .env
 ```
 
-4. Login to the <a href="https://staging.crossmint.com/console" target="_blank">Crossmint staging console</a> and get the client API key from the <a href="https://staging.crossmint.com/console/overview" target="_blank">overview page</a>:
+4. Create a [Privy app](https://dashboard.privy.io) and add your keys to `.env`:
 
 ```env
-NEXT_PUBLIC_CROSSMINT_CLIENT_API_KEY=your_client_side_API_key
+NEXT_PUBLIC_PRIVY_APP_ID=your_privy_app_id
+PRIVY_APP_SECRET=your_privy_app_secret
+ALCHEMY_API_KEY=your_alchemy_api_key
 ```
 
 5. Run the development server:
@@ -199,17 +201,19 @@ NEXT_PUBLIC_USDC_MINT=0x036CbD53842c5426634e7929541eC2318f3dCF7e
 
 This starter app is designed for rapid prototyping and testing in a staging environment. To move to production you'll need to:
 
-1. Login to the [Crossmint production console](https://www.crossmint.com/console) and [create a client side API key](https://www.crossmint.com/console/projects/apiKeys) with the following scopes: `users.create`, `users.read`, `wallets.read`, `wallets.create`, `wallets:transactions.create`, `wallets:transactions.sign`, `wallets:transactions.read`, `wallets:balance.read`, `wallets.fund`.
+1. Create a production [Privy app](https://dashboard.privy.io) with Email + Google login and embedded wallets enabled.
 2. Set the production environment variables:
    ```env
    NODE_ENV=production
+   NEXT_PUBLIC_PRIVY_APP_ID=your_privy_app_id
+   PRIVY_APP_SECRET=your_privy_app_secret
+   ALCHEMY_API_KEY=your_alchemy_api_key
    NEXT_PUBLIC_CHAIN_ID=base
    NEXT_PUBLIC_USDC_MINT=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
    ```
    **Note**: The app automatically enforces Base mainnet when `NODE_ENV=production`, but setting `NEXT_PUBLIC_CHAIN_ID=base` is recommended for clarity.
-3. Customize your email template for login and signup in the [Crossmint console](https://www.crossmint.com/console) under the Settings tab in the Branding section.
-4. For using onramp in production reach out to us on [Telegram](https://t.me/fintechstarterapp).
-5. Enable withdrawals by following the [Coinbase API configuration](#enabling-withdrawals) steps below.
+3. Customize login branding in the Privy dashboard.
+4. Enable withdrawals by following the [Coinbase API configuration](#enabling-withdrawals) steps below.
 
 ### Enabling Withdrawals
 
@@ -232,8 +236,12 @@ Withdrawals are powered by [Coinbase](https://www.coinbase.com/en-es/developer-p
 Create a `.env` file in your project root with the following variables:
 
 ```env
-# Crossmint Configuration (Required)
-NEXT_PUBLIC_CROSSMINT_CLIENT_API_KEY=your_crossmint_client_api_key_here
+# Privy (Required)
+NEXT_PUBLIC_PRIVY_APP_ID=your_privy_app_id_here
+PRIVY_APP_SECRET=your_privy_app_secret_here
+
+# Alchemy (Required for RPC + activity feed)
+ALCHEMY_API_KEY=your_alchemy_api_key_here
 
 # Chain Configuration (Required)
 # Supported values: base, base-sepolia
@@ -243,13 +251,9 @@ NEXT_PUBLIC_USDC_MINT=0x036CbD53842c5426634e7929541eC2318f3dCF7e
 # Coinbase Onramp/Offramp Configuration (Required for Deposits and Withdrawals)
 COINBASE_API_KEY_ID=your_coinbase_api_key_id_here
 COINBASE_API_KEY_SECRET=your_coinbase_api_key_secret_here
-
-# Crossmint Auth + Webhooks (server key for session routes; webhook secret in production)
-CROSSMINT_SERVER_API_KEY=your_crossmint_server_api_key_here
-CROSSMINT_WEBHOOK_SECRET=whsec_your_webhook_signing_secret
 ```
 
-Authentication uses **Crossmint Auth** (`CrossmintAuthProvider` + `EmbeddedAuthForm`). Configure webhooks in the Crossmint Console — see [docs/CROSSMINT_WEBHOOKS.md](./docs/CROSSMINT_WEBHOOKS.md).
+Authentication uses **Privy** (`PrivyProvider` + `@privy-io/wagmi`). Wallet activity is indexed via Alchemy when `ALCHEMY_API_KEY` is set.
 
 **USDC Contract Addresses:**
 

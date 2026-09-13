@@ -3,7 +3,7 @@
 import { useMemo, useState, useCallback } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { useWallet } from "@crossmint/client-sdk-react-ui";
+import { useAppWallet } from "@/hooks/useAppWallet";
 
 import { StrategyCard } from "@/components/strategies/StrategyCard";
 import { PremiumGuard } from "@/components/access/PremiumGuard";
@@ -258,7 +258,7 @@ function StrategiesContent({
 export default function StrategiesPage() {
   const [deployModalOpen, setDeployModalOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-  const { wallet, status: walletStatus } = useWallet();
+  const { status: walletStatus, address } = useAppWallet();
   const { status: authStatus } = useAuth();
   const membership = useMembership();
 
@@ -279,22 +279,18 @@ export default function StrategiesPage() {
     if (walletStatus === "in-progress" || authStatus === "initializing") {
       return "Connecting...";
     }
-    if (!wallet || authStatus !== "logged-in") {
+    if (!address || authStatus !== "logged-in") {
       return "Not connected";
     }
-    const crossmintAddress = wallet.address;
-    if (!crossmintAddress) {
-      return "Not connected";
-    }
-    return shortenAddress(crossmintAddress);
-  }, [authStatus, wallet, walletStatus]);
+    return shortenAddress(address);
+  }, [authStatus, address, walletStatus]);
 
   const walletAddress = useMemo(() => {
-    if (!wallet || authStatus !== "logged-in" || !wallet.address) {
+    if (!address || authStatus !== "logged-in") {
       return null;
     }
-    return wallet.address;
-  }, [authStatus, wallet]);
+    return address;
+  }, [authStatus, address]);
 
   const handleRefresh = useCallback(() => {
     setRefreshKey((k) => k + 1);

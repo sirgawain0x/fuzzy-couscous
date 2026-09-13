@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useWallet } from "@crossmint/client-sdk-react-ui";
+import { useAppWallet } from "@/hooks/useAppWallet";
 import { useAuth } from "@/context/AuthContext";
 
 interface LiquidationEvent {
@@ -22,7 +22,7 @@ interface LiquidationEvent {
  * Shows post-mortem cards with impact analysis and recovery advice.
  */
 export function LiquidationHistory() {
-  const { wallet } = useWallet();
+  const { wallet } = useAppWallet();
   const { sessionToken } = useAuth();
   const [liquidations, setLiquidations] = useState<LiquidationEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);

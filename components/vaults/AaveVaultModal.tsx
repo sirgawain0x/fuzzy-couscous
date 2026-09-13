@@ -4,7 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Address, encodeFunctionData, formatUnits, parseUnits } from "viem";
 import { useAccount, usePublicClient } from "wagmi";
 import { useAuth } from "@/context/AuthContext";
-import { useWallet } from "@crossmint/client-sdk-react-ui";
+import { useAppWallet } from "@/hooks/useAppWallet";
 
 import { Modal } from "@/components/common/Modal";
 import { useAaveWalletClient } from "@/hooks/useAaveWalletClient";
@@ -136,7 +136,7 @@ export function AaveVaultModal({
   const walletClient = useAaveWalletClient();
   const publicClient = usePublicClient();
   const { status: authStatus } = useAuth();
-  const { status: walletStatus } = useWallet();
+  const { status: walletStatus } = useAppWallet();
 
   // Both deposit/withdrawal previews and transactions use direct on-chain
   // ERC-4626 / ERC-20 contract calls instead of the Aave SDK, which throws

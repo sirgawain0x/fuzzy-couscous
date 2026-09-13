@@ -1,25 +1,17 @@
-import { useWallet } from "@crossmint/client-sdk-react-ui";
 import { useQuery } from "@tanstack/react-query";
+import { useAppWallet } from "@/hooks/useAppWallet";
+import { getWalletActivity } from "@/server-actions/getWalletActivity";
 
 export function useActivityFeed() {
-  const { wallet } = useWallet();
+  const { address } = useAppWallet();
+
   return useQuery({
-    queryKey: ["walletActivity", wallet?.address],
+    queryKey: ["walletActivity", address],
     queryFn: async () => {
-      const response = await wallet?.transfers({ tokens: "usdc", status: "successful" });
-      return {
-        events: (response?.data ?? []).map((t) => ({
-          from_address: t.sender?.address ?? "",
-          to_address: t.recipient?.address ?? "",
-          // Fall back to transferId so React keys stay unique when no on-chain hash
-          transaction_hash: t.onChain?.txId ?? t.transferId ?? "",
-          timestamp: t.completedAt,
-          amount: t.token?.amount ?? "0",
-          token_symbol: t.token?.symbol,
-        })),
-      };
+      if (!address) return { events: [] };
+      return getWalletActivity(address);
     },
-    enabled: !!wallet?.address,
+    enabled: !!address,
     refetchOnMount: true,
   });
 }

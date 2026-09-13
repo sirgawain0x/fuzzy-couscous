@@ -1,17 +1,11 @@
 "use client";
 
-import { FormEvent, useCallback, useMemo, useState } from "react";
-import { useAccount, useWalletClient, useReadContract, usePublicClient } from "wagmi";
-import { useWallet, EVMWallet } from "@crossmint/client-sdk-react-ui";
-import {
-  createWalletClient,
-  custom,
-  encodeFunctionData,
-  type WalletClient,
-  type Address,
-  formatUnits,
-} from "viem";
-import { base, baseSepolia } from "viem/chains";
+import { FormEvent, useCallback, useState } from "react";
+import { useReadContract, usePublicClient } from "wagmi";
+import { encodeFunctionData, type Address, formatUnits } from "viem";
+import { base } from "viem/chains";
+import { useAppWallet } from "@/hooks/useAppWallet";
+import { useAaveWalletClient } from "@/hooks/useAaveWalletClient";
 import {
   bigDecimal,
   chainId as aaveChainId,
@@ -111,46 +105,9 @@ export function VaultManagementModal({
   onSuccess,
   feeManagerAddress,
 }: VaultManagementModalProps) {
-  const { data: wagmiWalletClient } = useWalletClient();
-  const { wallet: crossmintWallet } = useWallet();
+  const { address: userWalletAddress } = useAppWallet();
+  const walletClient = useAaveWalletClient();
   const publicClient = usePublicClient();
-
-  const walletClient = useMemo((): WalletClient | undefined => {
-    if (crossmintWallet) {
-      try {
-        const evmWallet = EVMWallet.from(crossmintWallet);
-        const chain = process.env.NODE_ENV === "production" ? base : baseSepolia;
-        return createWalletClient({
-          chain,
-          transport: custom({
-            async request({ method, params }) {
-              if (method === "eth_sendTransaction" && params?.[0]) {
-                const tx = params[0] as { to?: string; value?: string; data?: string };
-                if (!tx.to) throw new Error("Transaction 'to' address is required");
-                const valueBigInt = BigInt(tx.value || "0x0");
-                const result = await evmWallet.sendTransaction({
-                  to: tx.to as `0x${string}`,
-                  value: valueBigInt,
-                  data: (tx.data || "0x") as `0x${string}`,
-                });
-                return result.hash;
-              }
-              if (method === "eth_accounts" || method === "eth_requestAccounts") {
-                return [crossmintWallet.address];
-              }
-              if (method === "eth_chainId") {
-                return `0x${chain.id.toString(16)}`;
-              }
-              throw new Error(`Method ${method} not yet supported with Crossmint wallet adapter`);
-            },
-          }),
-        });
-      } catch (e) {
-        console.error("Failed to create wallet client from Crossmint:", e);
-      }
-    }
-    return wagmiWalletClient ?? undefined;
-  }, [crossmintWallet, wagmiWalletClient]);
 
   const [setFee, setFeeState] = useVaultSetFee();
   const [withdrawFees, withdrawFeesState] = useVaultWithdrawFees();
@@ -203,33 +160,25 @@ export function VaultManagementModal({
     if (!feeManagerAddress || !aTokenAddress) return;
     console.log("[VaultManagement] Calling splitRevenue to distribute fees…");
     try {
-      if (crossmintWallet) {
-        const evmWallet = EVMWallet.from(crossmintWallet);
-        await evmWallet.sendTransaction({
-          to: feeManagerAddress as `0x${string}`,
-          abi: FEE_MANAGER_ABI,
-          functionName: "splitRevenue",
-          args: [[aTokenAddress as `0x${string}`]],
-        });
-      } else if (walletClient) {
+      if (walletClient) {
         const data = encodeFunctionData({
           abi: FEE_MANAGER_ABI,
           functionName: "splitRevenue",
           args: [[aTokenAddress]],
         });
-        const addrs = await walletClient.getAddresses();
+        const account = (userWalletAddress ?? (await walletClient.getAddresses())?.[0]) as Address;
         await walletClient.sendTransaction({
           to: feeManagerAddress,
           data,
           chain: base,
-          account: addrs[0] as Address,
+          account,
         });
       }
       console.log("[VaultManagement] splitRevenue succeeded — fees distributed to recipients");
     } catch (err) {
       console.warn("[VaultManagement] splitRevenue failed (fees remain in fee manager):", err);
     }
-  }, [feeManagerAddress, aTokenAddress, crossmintWallet, walletClient]);
+  }, [feeManagerAddress, aTokenAddress, userWalletAddress, walletClient]);
 
   // On-chain fee reads (works even when Aave API is down)
   const { data: onChainFee } = useReadContract({
@@ -348,7 +297,7 @@ export function VaultManagementModal({
       }
       const amount = withdrawMax ? { max: true as const } : { exact: bigDecimal(withdrawAmount) };
 
-      const userAddr = crossmintWallet?.address ?? (await walletClient.getAddresses())?.[0];
+      const userAddr = userWalletAddress ?? (await walletClient.getAddresses())?.[0];
 
       // ── Layer 1: Aave SDK hooks (normal path) ──
       console.log("[VaultManagement] Layer 1: Trying Aave SDK useVaultWithdrawFees…");
@@ -413,29 +362,17 @@ export function VaultManagementModal({
               "[VaultManagement] Layer 3: Calling fee manager withdrawFees() at",
               feeManagerAddress
             );
-            let layer3Hash: string | undefined;
-            if (crossmintWallet) {
-              const evmWallet = EVMWallet.from(crossmintWallet);
-              const txResult = await evmWallet.sendTransaction({
-                to: feeManagerAddress as `0x${string}`,
-                abi: FEE_MANAGER_ABI,
-                functionName: "withdrawFees",
-              });
-              layer3Hash = txResult.hash;
-              console.log("[VaultManagement] Layer 3 success:", layer3Hash);
-            } else {
-              const data = encodeFunctionData({
-                abi: FEE_MANAGER_ABI,
-                functionName: "withdrawFees",
-              });
-              layer3Hash = await walletClient.sendTransaction({
-                to: feeManagerAddress,
-                data,
-                chain: base,
-                account: userAddr as Address,
-              });
-              console.log("[VaultManagement] Layer 3 success:", layer3Hash);
-            }
+            const data = encodeFunctionData({
+              abi: FEE_MANAGER_ABI,
+              functionName: "withdrawFees",
+            });
+            const layer3Hash = await walletClient.sendTransaction({
+              to: feeManagerAddress,
+              data,
+              chain: base,
+              account: userAddr as Address,
+            });
+            console.log("[VaultManagement] Layer 3 success:", layer3Hash);
             if (layer3Hash) {
               await waitForReceipt(layer3Hash);
             }
@@ -451,29 +388,17 @@ export function VaultManagementModal({
                 "[VaultManagement] Layer 3b: Calling fee manager claimRewards() at",
                 feeManagerAddress
               );
-              let layer3bHash: string | undefined;
-              if (crossmintWallet) {
-                const evmWallet = EVMWallet.from(crossmintWallet);
-                const txResult = await evmWallet.sendTransaction({
-                  to: feeManagerAddress as `0x${string}`,
-                  abi: FEE_MANAGER_ABI,
-                  functionName: "claimRewards",
-                });
-                layer3bHash = txResult.hash;
-                console.log("[VaultManagement] Layer 3b success:", layer3bHash);
-              } else {
-                const data = encodeFunctionData({
-                  abi: FEE_MANAGER_ABI,
-                  functionName: "claimRewards",
-                });
-                layer3bHash = await walletClient.sendTransaction({
-                  to: feeManagerAddress,
-                  data,
-                  chain: base,
-                  account: userAddr as Address,
-                });
-                console.log("[VaultManagement] Layer 3b success:", layer3bHash);
-              }
+              const claimData = encodeFunctionData({
+                abi: FEE_MANAGER_ABI,
+                functionName: "claimRewards",
+              });
+              const layer3bHash = await walletClient.sendTransaction({
+                to: feeManagerAddress,
+                data: claimData,
+                chain: base,
+                account: userAddr as Address,
+              });
+              console.log("[VaultManagement] Layer 3b success:", layer3bHash);
               if (layer3bHash) {
                 await waitForReceipt(layer3bHash);
               }
@@ -499,31 +424,18 @@ export function VaultManagementModal({
         }
         try {
           console.log("[VaultManagement] Layer 4: Trying claimRewards on vault directly…");
-          let layer4Hash: string | undefined;
-          if (crossmintWallet) {
-            const evmWallet = EVMWallet.from(crossmintWallet);
-            const txResult = await evmWallet.sendTransaction({
-              to: vault.address as `0x${string}`,
-              abi: VAULT_MGMT_ABI,
-              functionName: "claimRewards",
-              args: [userAddr as `0x${string}`],
-            });
-            layer4Hash = txResult.hash;
-            console.log("[VaultManagement] Layer 4 success:", layer4Hash);
-          } else {
-            const data = encodeFunctionData({
-              abi: VAULT_MGMT_ABI,
-              functionName: "claimRewards",
-              args: [userAddr as Address],
-            });
-            layer4Hash = await walletClient.sendTransaction({
-              to: vault.address as Address,
-              data,
-              chain: base,
-              account: userAddr as Address,
-            });
-            console.log("[VaultManagement] Layer 4 success:", layer4Hash);
-          }
+          const claimRewardsData = encodeFunctionData({
+            abi: VAULT_MGMT_ABI,
+            functionName: "claimRewards",
+            args: [userAddr as Address],
+          });
+          const layer4Hash = await walletClient.sendTransaction({
+            to: vault.address as Address,
+            data: claimRewardsData,
+            chain: base,
+            account: userAddr as Address,
+          });
+          console.log("[VaultManagement] Layer 4 success:", layer4Hash);
           if (layer4Hash) {
             await waitForReceipt(layer4Hash);
           }
@@ -535,8 +447,7 @@ export function VaultManagementModal({
 
           // ── Layer 5: All fallbacks exhausted — show instructions ──
           const failureMessage =
-            "All fee withdrawal methods failed. The Aave API is currently down, and Crossmint's " +
-            "transaction simulation doesn't support owner-gated vault calls yet. " +
+            "All fee withdrawal methods failed. The Aave API is currently down. " +
             "You can try withdrawing directly on Basescan: " +
             `https://basescan.org/address/${vault.address}#writeProxyContract`;
           reportVaultError("Withdraw fees failed", failureMessage);
@@ -560,7 +471,7 @@ export function VaultManagementModal({
       withdrawMax,
       withdrawAmount,
       walletClient,
-      crossmintWallet,
+      userWalletAddress,
       chainId,
       vault.address,
       feeManagerAddress,

@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback } from "react";
 import Link from "next/link";
 import { Address, formatUnits } from "viem";
-import { useAccount, useReadContract } from "wagmi";
-import { useWallet } from "@crossmint/client-sdk-react-ui";
+import { useReadContract } from "wagmi";
+import { useAppWallet } from "@/hooks/useAppWallet";
 import { BASE_BLOCK_EXPLORER_ADDRESS_URL } from "@/lib/config/yearn";
 import { YearnVaultModal } from "./YearnVaultModal";
 import { NexusCoverModal } from "@/components/nexus/NexusCoverModal";
@@ -40,12 +40,8 @@ export const YearnVaultCard = ({
   userAssetBalance = 0n,
   bouncerAddress,
 }: YearnVaultCardProps) => {
-  const { address: wagmiAddress } = useAccount();
-  const { wallet: crossmintWallet } = useWallet();
-  const userAddress = useMemo(() => {
-    if (crossmintWallet?.address) return crossmintWallet.address as `0x${string}`;
-    return wagmiAddress ?? undefined;
-  }, [crossmintWallet?.address, wagmiAddress]);
+  const { address } = useAppWallet();
+  const userAddress = address as `0x${string}` | undefined;
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"deposit" | "withdraw">("deposit");

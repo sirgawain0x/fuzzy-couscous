@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { useWallet } from "@crossmint/client-sdk-react-ui";
+import { useAppWallet } from "@/hooks/useAppWallet";
 import { AmountInput } from "../common/AmountInput";
 import { OrderPreview } from "./OrderPreview";
 import { RecipientInput } from "./RecipientInput";
@@ -22,7 +22,7 @@ interface SendFundsModalProps {
 }
 
 export function SendFundsModal({ open, onClose }: SendFundsModalProps) {
-  const { wallet } = useWallet();
+  const { wallet } = useAppWallet();
   const { user } = useAuth();
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("");

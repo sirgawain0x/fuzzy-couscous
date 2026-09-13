@@ -1,14 +1,8 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
-import {
-  useWriteContract,
-  useReadContract,
-  useAccount,
-  usePublicClient,
-  useWalletClient,
-} from "wagmi";
-import { useWallet } from "@crossmint/client-sdk-react-ui";
+import { useWriteContract, useReadContract, usePublicClient, useWalletClient } from "wagmi";
+import { useAppWallet } from "@/hooks/useAppWallet";
 import { Address, type WalletClient } from "viem";
 import { encodeFunctionData } from "viem";
 import { base } from "viem/chains";
@@ -148,7 +142,7 @@ type UseYearnDepositReturn = {
 /**
  * Hook to handle Yearn V3 vault deposits with ERC-4626 compliance
  * Follows the standard flow: approve token -> deposit assets
- * Supports both Crossmint wallet and wagmi wallet
+ * Uses Privy embedded wallet via wagmi
  */
 export const useYearnDeposit = (
   vaultAddress: Address | undefined,
@@ -156,20 +150,10 @@ export const useYearnDeposit = (
   walletClient?: WalletClient
 ): UseYearnDepositReturn => {
   const [state, setState] = useState<DepositState>({ status: "idle" });
-  const { address: wagmiAddress } = useAccount();
-  const { wallet: crossmintWallet } = useWallet();
-  // Use explicit Base chain so reads/estimates work when Crossmint is connected (no wagmi active chain)
+  const { address } = useAppWallet();
+  const ownerAddress = address as `0x${string}` | undefined;
   const publicClient = usePublicClient({ chainId: YEARN_VAULT_CHAIN_ID });
   const { data: wagmiWalletClient } = useWalletClient();
-
-  // Determine active address (Crossmint takes priority, fallback to wagmi)
-  // This must match the logic in YearnVaultModal to ensure we use the correct address
-  const ownerAddress = useMemo(() => {
-    if (crossmintWallet?.address) {
-      return crossmintWallet.address as `0x${string}`;
-    }
-    return wagmiAddress;
-  }, [crossmintWallet?.address, wagmiAddress]);
 
   // Use provided wallet client, fallback to wagmi wallet client
   const activeWalletClient = walletClient || wagmiWalletClient;
@@ -247,7 +231,7 @@ export const useYearnDeposit = (
 
           let approveHash: `0x${string}`;
 
-          // Use custom wallet client if provided (Crossmint), otherwise use wagmi
+          // Use custom wallet client if provided, otherwise use wagmi
           if (activeWalletClient) {
             // Encode the function data
             const data = encodeFunctionData({
@@ -303,7 +287,7 @@ export const useYearnDeposit = (
 
         let depositHash: `0x${string}`;
 
-        // Use custom wallet client if provided (Crossmint), otherwise use wagmi
+        // Use custom wallet client if provided, otherwise use wagmi
         if (activeWalletClient) {
           // Encode the function data
           const data = encodeFunctionData({

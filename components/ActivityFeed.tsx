@@ -2,8 +2,8 @@ import React from "react";
 import { DepositButton } from "./common/DepositButton";
 import Image from "next/image";
 import { useActivityFeed } from "../hooks/useActivityFeed";
+import { useAppWallet } from "@/hooks/useAppWallet";
 import { Container } from "./common/Container";
-import { useWallet } from "@crossmint/client-sdk-react-ui";
 
 interface ActivityFeedProps {
   onDepositClick: () => void;
@@ -11,7 +11,7 @@ interface ActivityFeedProps {
 
 export function ActivityFeed({ onDepositClick }: ActivityFeedProps) {
   const { data, isLoading } = useActivityFeed();
-  const { wallet } = useWallet();
+  const { address: walletAddress } = useAppWallet();
   return (
     <Container className="flex max-h-[70vh] min-h-[280px] w-full max-w-5xl flex-grow flex-col overflow-hidden sm:max-h-[600px] sm:min-h-[350px]">
       <div className="mb-2 flex-shrink-0 text-base text-slate-600">Last Activity</div>
@@ -46,7 +46,7 @@ export function ActivityFeed({ onDepositClick }: ActivityFeedProps) {
             >
               {data?.events.map((event) => {
                 const isOutgoing =
-                  event.from_address.toLowerCase() === wallet?.address.toLowerCase();
+                  event.from_address.toLowerCase() === walletAddress?.toLowerCase();
                 const counterparty = isOutgoing ? event.to_address : event.from_address;
                 return (
                   <li key={event.transaction_hash} className="flex items-center gap-4 py-3 sm:py-4">

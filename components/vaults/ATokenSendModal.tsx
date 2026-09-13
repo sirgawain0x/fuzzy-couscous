@@ -2,9 +2,8 @@
 
 import { FormEvent, useCallback, useMemo, useState } from "react";
 import { formatUnits, parseUnits, encodeFunctionData, isAddress, type Address } from "viem";
-import { useWalletClient } from "wagmi";
-import { useWallet, EVMWallet } from "@crossmint/client-sdk-react-ui";
 import { appChain } from "@/lib/wagmiConfig";
+import { useAaveWalletClient } from "@/hooks/useAaveWalletClient";
 import { Modal } from "@/components/common/Modal";
 import {
   formatRecipientLabel,
@@ -45,8 +44,7 @@ export function ATokenSendModal({
   assetDecimals,
   onSuccess,
 }: ATokenSendModalProps) {
-  const { data: wagmiWalletClient } = useWalletClient();
-  const { wallet: crossmintWallet } = useWallet();
+  const walletClient = useAaveWalletClient();
 
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("");
@@ -98,33 +96,22 @@ export function ATokenSendModal({
       setLoading(true);
       try {
         const to = recipient.trim() as Address;
-        let hash: string | undefined;
-
-        if (crossmintWallet) {
-          const evmWallet = EVMWallet.from(crossmintWallet);
-          const result = await evmWallet.sendTransaction({
-            to: aTokenAddress as `0x${string}`,
-            abi: ERC20_TRANSFER_ABI,
-            functionName: "transfer",
-            args: [to as `0x${string}`, sendAmount],
-          });
-          hash = result.hash ?? undefined;
-        } else if (wagmiWalletClient) {
-          const data = encodeFunctionData({
-            abi: ERC20_TRANSFER_ABI,
-            functionName: "transfer",
-            args: [to, sendAmount],
-          });
-          hash = await wagmiWalletClient.sendTransaction({
-            to: aTokenAddress,
-            data,
-            chain: appChain,
-            account: userAddress,
-          });
-        } else {
+        if (!walletClient) {
           setError("No wallet connected");
           return;
         }
+
+        const data = encodeFunctionData({
+          abi: ERC20_TRANSFER_ABI,
+          functionName: "transfer",
+          args: [to, sendAmount],
+        });
+        const hash = await walletClient.sendTransaction({
+          to: aTokenAddress,
+          data,
+          chain: appChain,
+          account: userAddress,
+        });
 
         const amountLabel = sendMax ? formattedBalance : amount;
         showTxSuccessToast({
@@ -151,8 +138,7 @@ export function ATokenSendModal({
       sendAmount,
       isValidRecipient,
       isValidAmount,
-      crossmintWallet,
-      wagmiWalletClient,
+      walletClient,
       aTokenAddress,
       userAddress,
       onSuccess,

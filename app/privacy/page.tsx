@@ -82,12 +82,12 @@ export default function PrivacyPolicyPage() {
         </p>
         <ul className="list-disc space-y-1 pl-6">
           <li>
-            <strong>Crossmint</strong> — authentication, wallet infrastructure, and session
+            <strong>Privy</strong> — authentication, embedded wallet infrastructure, and session
             management
           </li>
           <li>
-            <strong>Crossmint</strong> — non-custodial smart wallet infrastructure and passkey
-            signer management
+            <strong>Alchemy</strong> — blockchain RPC, transaction indexing, and wallet activity
+            data
           </li>
           <li>
             <strong>Coinbase</strong> — fiat onramp, identity verification, and payment processing

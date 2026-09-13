@@ -10,9 +10,9 @@ Copy the **General Connection String** from Cockroach Cloud (Connect → databas
 
 ## IP allowlist (Cockroach Cloud → Networking)
 
-| Source | CIDR / action |
-|--------|----------------|
-| Local dev | Add your current public IP (or “Add my IP” in Console) |
+| Source            | CIDR / action                                                                                         |
+| ----------------- | ----------------------------------------------------------------------------------------------------- |
+| Local dev         | Add your current public IP (or “Add my IP” in Console)                                                |
 | Vercel serverless | Allow `0.0.0.0/0`, or restrict to [Vercel Static IPs](https://vercel.com/docs/connectivity/static-ip) |
 
 Without allowlist entries, connections time out or fail even when `COCKROACHDB_URL` is correct.
@@ -44,8 +44,8 @@ Project: `creative-projects/bank`. Update `COCKROACHDB_URL` for Production, Prev
 
 ## Troubleshooting
 
-| Error | Fix |
-|-------|-----|
-| `cluster … not found` | Hostname is from a deleted cluster — copy a fresh General Connection String from the new cluster Connect page |
-| Connection timeout | Add your IP (and Vercel egress) to Cockroach Cloud allowlist |
-| `COCKROACHDB_URL is required` | Set the env var locally or on Vercel and redeploy |
+| Error                         | Fix                                                                                                           |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `cluster … not found`         | Hostname is from a deleted cluster — copy a fresh General Connection String from the new cluster Connect page |
+| Connection timeout            | Add your IP (and Vercel egress) to Cockroach Cloud allowlist                                                  |
+| `COCKROACHDB_URL is required` | Set the env var locally or on Vercel and redeploy                                                             |

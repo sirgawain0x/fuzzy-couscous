@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { formatUnits, type Address } from "viem";
-import { useAccount, useReadContract } from "wagmi";
-import { useWallet } from "@crossmint/client-sdk-react-ui";
+import { useReadContract } from "wagmi";
+import { useAppWallet } from "@/hooks/useAppWallet";
 import { useBaseUsdcReserve } from "@/hooks/useBaseUsdcReserve";
 import { appChain } from "@/lib/wagmiConfig";
 import { ATokenSendModal } from "./ATokenSendModal";
@@ -20,14 +20,10 @@ const ERC20_BALANCE_ABI = [
 ] as const;
 
 export function ATokenBalance() {
-  const { address: wagmiAddress } = useAccount();
-  const { wallet: crossmintWallet } = useWallet();
+  const { address } = useAppWallet();
   const [sendModalOpen, setSendModalOpen] = useState(false);
 
-  const userAddress = useMemo(() => {
-    if (crossmintWallet?.address) return crossmintWallet.address as `0x${string}`;
-    return wagmiAddress;
-  }, [crossmintWallet?.address, wagmiAddress]);
+  const userAddress = address as `0x${string}` | undefined;
 
   const { reserve } = useBaseUsdcReserve();
   const aTokenAddress = reserve?.aToken?.address as Address | undefined;

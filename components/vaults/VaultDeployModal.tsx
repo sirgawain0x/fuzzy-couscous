@@ -9,11 +9,11 @@ import {
   type Reserve,
   type VaultDeployRequest,
 } from "@aave/react";
-import { useWalletClient, useAccount, usePublicClient } from "wagmi";
+import { usePublicClient } from "wagmi";
 import { useSendTransaction } from "@aave/react/viem";
 import { useAuth } from "@/context/AuthContext";
-import { useWallet, EVMWallet } from "@crossmint/client-sdk-react-ui";
-import { createWalletClient, custom, type WalletClient } from "viem";
+import { useAppWallet } from "@/hooks/useAppWallet";
+import { useAaveWalletClient } from "@/hooks/useAaveWalletClient";
 import { base, baseSepolia } from "viem/chains";
 
 import { Modal } from "@/components/common/Modal";
@@ -76,11 +76,10 @@ export function VaultDeployModal({
   market,
   reserve,
 }: VaultDeployModalProps) {
-  const { address: wagmiAddress } = useAccount();
-  const { data: wagmiWalletClient } = useWalletClient();
   const targetChainId = process.env.NODE_ENV === "production" ? base.id : baseSepolia.id;
   const publicClient = usePublicClient({ chainId: targetChainId });
-  const { wallet: crossmintWallet, status: walletStatus } = useWallet();
+  const { address: activeAddress, status: walletStatus } = useAppWallet();
+  const walletClient = useAaveWalletClient();
   const { status: authStatus } = useAuth();
   const { tier, isLoading: membershipLoading } = useMembership();
   const [deployVault, deployState] = useVaultDeploy();
@@ -88,93 +87,6 @@ export function VaultDeployModal({
   // Check if user has any membership (only after loading is complete)
   const hasMembership = !membershipLoading && tier !== null;
   const canSetFeeReceiver = hasMembership && tier !== null && FEE_RECEIVER_TIERS.includes(tier);
-
-  // Determine active address (Crossmint takes priority, fallback to wagmi)
-  const activeAddress = useMemo(() => {
-    if (crossmintWallet?.address) {
-      return crossmintWallet.address as `0x${string}`;
-    }
-    return wagmiAddress;
-  }, [crossmintWallet?.address, wagmiAddress]);
-
-  // Create wallet client from Crossmint wallet if available, otherwise use wagmi client
-  const walletClient = useMemo((): WalletClient | undefined => {
-    // If we have a Crossmint wallet, create a viem wallet client adapter
-    if (crossmintWallet) {
-      try {
-        const evmWallet = EVMWallet.from(crossmintWallet);
-        const chain = process.env.NODE_ENV === "production" ? base : baseSepolia;
-
-        // Create a custom wallet client that uses Crossmint's EVMWallet for transactions
-        return createWalletClient({
-          chain,
-          transport: custom({
-            async request({ method, params }) {
-              // Handle transaction sending through Crossmint's EVMWallet
-              if (method === "eth_sendTransaction" && params?.[0]) {
-                const tx = params[0] as {
-                  to?: string;
-                  value?: string;
-                  data?: string;
-                  gas?: string;
-                  gasPrice?: string;
-                  maxFeePerGas?: string;
-                  maxPriorityFeePerGas?: string;
-                };
-
-                // Validate required fields
-                if (!tx.to) {
-                  throw new Error("Transaction 'to' address is required");
-                }
-
-                // Convert viem transaction format to Crossmint format
-                // Convert hex string value to bigint as required by EVMTransactionInput
-                const valueHex = tx.value || "0x0";
-                const valueBigInt = BigInt(valueHex);
-
-                const transaction = {
-                  to: tx.to as `0x${string}`,
-                  value: valueBigInt,
-                  data: (tx.data || "0x") as `0x${string}`,
-                };
-
-                // Send transaction using Crossmint's EVMWallet
-                const result = await evmWallet.sendTransaction(transaction);
-
-                // Return the transaction hash in the format viem expects
-                return result.hash;
-              }
-
-              // Handle account requests
-              if (method === "eth_accounts" || method === "eth_requestAccounts") {
-                return [crossmintWallet.address];
-              }
-
-              // Handle chain ID requests
-              if (method === "eth_chainId") {
-                return `0x${chain.id.toString(16)}`;
-              }
-
-              // Proxy read-only RPC calls (eth_call, eth_estimateGas, eth_getBalance, etc.)
-              // through the public client so Aave SDK can prepare transactions
-              if (publicClient) {
-                return publicClient.request({ method, params } as Parameters<
-                  typeof publicClient.request
-                >[0]);
-              }
-
-              throw new Error(`Method ${method} not supported: no public client available`);
-            },
-          }),
-        });
-      } catch (error) {
-        console.error("Failed to create wallet client from Crossmint wallet:", error);
-      }
-    }
-
-    // Fallback to wagmi wallet client
-    return wagmiWalletClient ?? undefined;
-  }, [crossmintWallet, wagmiWalletClient, publicClient]);
 
   const [sendTransaction, sendTransactionState] = useSendTransaction(walletClient);
 
@@ -253,7 +165,7 @@ export function VaultDeployModal({
   }, []);
 
   const validate = useCallback(() => {
-    // Check if wallet is connected (either Crossmint or wagmi)
+    // Check if wallet is connected
     if (!activeAddress) {
       // Provide more helpful error message
       if (authStatus === "initializing" || walletStatus === "in-progress") {

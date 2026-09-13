@@ -5,7 +5,7 @@ import { requireAuthedWallet } from "@/lib/apiAuth";
 /**
  * POST /api/onramp/order
  * Creates a Coinbase Onramp v2 order and returns the paymentLink.
- * Validates Crossmint JWT before accepting the order.
+ * Validates Privy access token before accepting the order.
  */
 export async function POST(request: NextRequest) {
   try {

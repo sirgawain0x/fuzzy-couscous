@@ -2,8 +2,7 @@
 
 import { useReadContract } from "wagmi";
 import { useMemo } from "react";
-import { useAccount } from "wagmi";
-import { useWallet } from "@crossmint/client-sdk-react-ui";
+import { useAppWallet } from "@/hooks/useAppWallet";
 import type { Address } from "viem";
 import { CREATIVE_BANK_BOUNCER_ABI } from "@/lib/config/yearn";
 
@@ -23,15 +22,8 @@ type UseKalaniDepositEligibilityReturn = {
 export const useKalaniDepositEligibility = (
   bouncerAddress: Address | undefined
 ): UseKalaniDepositEligibilityReturn => {
-  const { address: wagmiAddress } = useAccount();
-  const { wallet: crossmintWallet } = useWallet();
-
-  const userAddress = useMemo((): Address | undefined => {
-    if (crossmintWallet?.address) {
-      return crossmintWallet.address as Address;
-    }
-    return wagmiAddress ?? undefined;
-  }, [crossmintWallet?.address, wagmiAddress]);
+  const { address } = useAppWallet();
+  const userAddress = address as Address | undefined;
 
   const {
     data: depositLimit,

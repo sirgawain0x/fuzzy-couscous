@@ -8,11 +8,7 @@ import { withBotId } from "botid/next/config";
 // bundler errors with "Module not found":
 //   - webpack: `false` skips the module entirely
 //   - turbopack: redirect to a stub file (boolean is not a valid alias value)
-const SKIPPED_CONNECTOR_DEPS = [
-  "accounts",
-  "@metamask/connect-evm",
-  "@base-org/account",
-];
+const SKIPPED_CONNECTOR_DEPS = ["accounts", "@metamask/connect-evm", "@base-org/account"];
 const EMPTY_MODULE = path.resolve(__dirname, "lib/empty-module.ts");
 
 const nextConfig: NextConfig = {

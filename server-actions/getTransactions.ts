@@ -7,7 +7,7 @@ import { getPool } from "@/lib/cockroachdb";
  * Fetches transactions for a wallet address.
  * Primary lookup is by wallet_address (stable identifier across auth migrations).
  */
-export async function getTransactions(walletAddress: string, crossmintUserId?: string) {
+export async function getTransactions(walletAddress: string, privyUserId?: string) {
   if (!walletAddress) {
     throw new Error("Wallet address is required to fetch transactions");
   }
@@ -27,7 +27,7 @@ export async function getTransactions(walletAddress: string, crossmintUserId?: s
           `[CockroachDB] Returning ${rows.length} cached transactions for wallet: ${walletAddress}`
         );
 
-        syncTransactionsFromAPI(walletAddress, crossmintUserId).catch((err) =>
+        syncTransactionsFromAPI(walletAddress, privyUserId).catch((err) =>
           console.error("Background sync failed:", err)
         );
 
@@ -41,14 +41,14 @@ export async function getTransactions(walletAddress: string, crossmintUserId?: s
     }
   }
 
-  return await fetchTransactionsFromAPI(walletAddress, crossmintUserId);
+  return await fetchTransactionsFromAPI(walletAddress, privyUserId);
 }
 
 /**
- * Upserts a user record linking Crossmint identity to wallet address.
+ * Upserts a user record linking Privy identity to wallet address.
  */
 export async function upsertUser(
-  crossmintUserId: string,
+  privyUserId: string,
   walletAddress: string,
   email?: string,
   phoneNumber?: string
@@ -58,9 +58,9 @@ export async function upsertUser(
   try {
     const pool = getPool();
     await pool.query(
-      `INSERT INTO users (crossmint_user_id, wallet_address, email, phone_number, email_verified_at, updated_at)
+      `INSERT INTO users (privy_user_id, wallet_address, email, phone_number, email_verified_at, updated_at)
        VALUES ($1, $2, $3, $4, CASE WHEN $3 IS NOT NULL THEN now() ELSE NULL END, now())
-       ON CONFLICT (crossmint_user_id) DO UPDATE SET
+       ON CONFLICT (privy_user_id) DO UPDATE SET
          wallet_address = EXCLUDED.wallet_address,
          email = COALESCE(EXCLUDED.email, users.email),
          phone_number = COALESCE(EXCLUDED.phone_number, users.phone_number),
@@ -69,14 +69,14 @@ export async function upsertUser(
            ELSE users.email_verified_at
          END,
          updated_at = now()`,
-      [crossmintUserId, walletAddress.toLowerCase(), email || null, phoneNumber || null]
+      [privyUserId, walletAddress.toLowerCase(), email || null, phoneNumber || null]
     );
   } catch (error) {
     console.error("[CockroachDB] Failed to upsert user:", error);
   }
 }
 
-async function fetchTransactionsFromAPI(walletAddress: string, crossmintUserId?: string) {
+async function fetchTransactionsFromAPI(walletAddress: string, privyUserId?: string) {
   if (!process.env.COINBASE_API_KEY_ID || !process.env.COINBASE_API_KEY_SECRET) {
     console.warn("Coinbase API keys not configured, skipping transaction fetch");
     return [];
@@ -115,7 +115,7 @@ async function fetchTransactionsFromAPI(walletAddress: string, crossmintUserId?:
     const transactions = normalizeTransactionsResponse(data);
 
     if (transactions.length > 0) {
-      await storeTransactions(walletAddress, transactions, crossmintUserId);
+      await storeTransactions(walletAddress, transactions, privyUserId);
     }
 
     return transactions;
@@ -125,9 +125,9 @@ async function fetchTransactionsFromAPI(walletAddress: string, crossmintUserId?:
   }
 }
 
-async function syncTransactionsFromAPI(walletAddress: string, crossmintUserId?: string) {
+async function syncTransactionsFromAPI(walletAddress: string, privyUserId?: string) {
   try {
-    await fetchTransactionsFromAPI(walletAddress, crossmintUserId);
+    await fetchTransactionsFromAPI(walletAddress, privyUserId);
   } catch (error) {
     console.error("Sync failed:", error);
   }
@@ -145,11 +145,7 @@ const normalizeTransactionsResponse = (data: unknown): any[] => {
   return [record];
 };
 
-async function storeTransactions(
-  walletAddress: string,
-  transactions: any[],
-  crossmintUserId?: string
-) {
+async function storeTransactions(walletAddress: string, transactions: any[], privyUserId?: string) {
   if (!transactions.length) return;
   if (!process.env.COCKROACHDB_URL) return;
 
@@ -176,7 +172,7 @@ async function storeTransactions(
 
       values.push(
         normalizedAddress,
-        crossmintUserId || null,
+        privyUserId || null,
         tx.transaction_id || tx.id,
         tx.type || "offramp",
         tx.status || "unknown",
@@ -193,7 +189,7 @@ async function storeTransactions(
 
     await pool.query(
       `INSERT INTO transactions (
-        wallet_address, crossmint_user_id, transaction_id, type, status,
+        wallet_address, privy_user_id, transaction_id, type, status,
         to_address, from_address,
         sell_amount_value, sell_amount_currency,
         buy_amount_value, buy_amount_currency,

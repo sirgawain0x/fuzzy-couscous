@@ -2,8 +2,7 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { Address } from "viem";
-import { useAccount } from "wagmi";
-import { useWallet } from "@crossmint/client-sdk-react-ui";
+import { useAppWallet } from "@/hooks/useAppWallet";
 import { DeployedVaultCard } from "./DeployedVaultCard";
 import { useOwnedVaults } from "@/hooks/useOwnedVaults";
 import { USDC_ADDRESS_BASE } from "@/lib/config/yearn";
@@ -17,12 +16,8 @@ type DeployedVault = {
 };
 
 export const MyDeployedVaults = () => {
-  const { address: wagmiAddress } = useAccount();
-  const { wallet: crossmintWallet } = useWallet();
-  const userAddress = useMemo(() => {
-    if (crossmintWallet?.address) return crossmintWallet.address;
-    return wagmiAddress ?? undefined;
-  }, [crossmintWallet?.address, wagmiAddress]);
+  const { address } = useAppWallet();
+  const userAddress = address;
 
   const { vaults: apiVaults, loading: apiLoading } = useOwnedVaults(userAddress);
 

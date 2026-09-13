@@ -1,21 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  CrossmintProvider,
-  CrossmintAuthProvider,
-  CrossmintWalletProvider,
-} from "@crossmint/client-sdk-react-ui";
+import { PrivyProvider } from "@privy-io/react-auth";
+import { WagmiProvider } from "@privy-io/wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "sonner";
-import { WagmiProvider } from "wagmi";
 import { AaveProvider, AaveClient, production } from "@aave/react";
 
 import { wagmiConfig } from "@/lib/wagmiConfig";
+import { privyAppId, privyConfig } from "@/lib/privyConfig";
 import { MembershipProvider } from "@/context/MembershipContext";
 import { AuthProvider } from "@/context/AuthContext";
-import { WalletProvisioner } from "@/components/auth/WalletProvisioner";
-import { WalletRecoveryBootstrap } from "@/components/auth/WalletRecoveryBootstrap";
 import { WalletProvisioningProvider } from "@/context/WalletProvisioningContext";
 
 const aaveClient = AaveClient.create({
@@ -43,8 +38,8 @@ if (walletConnectMissing) {
   );
 }
 
-if (!process.env.NEXT_PUBLIC_CROSSMINT_CLIENT_API_KEY) {
-  throw new Error("NEXT_PUBLIC_CROSSMINT_CLIENT_API_KEY is not set");
+if (!privyAppId) {
+  throw new Error("NEXT_PUBLIC_PRIVY_APP_ID is not set");
 }
 
 if (process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_CHAIN_ID === "base-sepolia") {
@@ -72,32 +67,21 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <WagmiProvider config={wagmiConfig}>
-        <AaveProvider client={aaveClient}>
-          <CrossmintProvider apiKey={process.env.NEXT_PUBLIC_CROSSMINT_CLIENT_API_KEY || ""}>
-            <CrossmintAuthProvider
-              loginMethods={["email", "google"]}
-              authModalTitle="Sign in via Crossmint"
-              refreshRoute="/api/auth/crossmint/refresh"
-              logoutRoute="/api/auth/crossmint/logout"
-            >
-              <AuthProvider>
-                <CrossmintWalletProvider showPasskeyHelpers={true}>
-                  <WalletProvisioningProvider>
-                    <WalletProvisioner />
-                    <WalletRecoveryBootstrap />
-                    <MembershipProvider>
-                      {children}
-                      <Toaster richColors position="top-center" closeButton />
-                    </MembershipProvider>
-                  </WalletProvisioningProvider>
-                </CrossmintWalletProvider>
-              </AuthProvider>
-            </CrossmintAuthProvider>
-          </CrossmintProvider>
-        </AaveProvider>
-      </WagmiProvider>
-    </QueryClientProvider>
+    <PrivyProvider appId={privyAppId} config={privyConfig}>
+      <QueryClientProvider client={queryClient}>
+        <WagmiProvider config={wagmiConfig}>
+          <AaveProvider client={aaveClient}>
+            <AuthProvider>
+              <WalletProvisioningProvider>
+                <MembershipProvider>
+                  {children}
+                  <Toaster richColors position="top-center" closeButton />
+                </MembershipProvider>
+              </WalletProvisioningProvider>
+            </AuthProvider>
+          </AaveProvider>
+        </WagmiProvider>
+      </QueryClientProvider>
+    </PrivyProvider>
   );
 }

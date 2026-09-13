@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
-import { getProvisioningErrorMessage } from "@/lib/walletProvisioningError";
+import { createContext, useCallback, useContext, useMemo, type ReactNode } from "react";
 
 interface WalletProvisioningContextValue {
   provisioningError: string | null;
@@ -18,25 +10,21 @@ interface WalletProvisioningContextValue {
 
 const WalletProvisioningContext = createContext<WalletProvisioningContextValue | null>(null);
 
+/** Privy provisions embedded wallets automatically; this context remains for API compatibility. */
 export const WalletProvisioningProvider = ({ children }: { children: ReactNode }) => {
-  const [provisioningError, setProvisioningErrorState] = useState<string | null>(null);
-
   const setProvisioningError = useCallback((error: unknown) => {
-    console.error("Failed to provision Crossmint wallet:", error);
-    setProvisioningErrorState(getProvisioningErrorMessage(error));
+    console.error("Wallet provisioning error:", error);
   }, []);
 
-  const clearProvisioningError = useCallback(() => {
-    setProvisioningErrorState(null);
-  }, []);
+  const clearProvisioningError = useCallback(() => undefined, []);
 
   const value = useMemo(
     () => ({
-      provisioningError,
+      provisioningError: null,
       setProvisioningError,
       clearProvisioningError,
     }),
-    [provisioningError, setProvisioningError, clearProvisioningError]
+    [setProvisioningError, clearProvisioningError]
   );
 
   return (

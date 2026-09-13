@@ -2,7 +2,7 @@
 -- CockroachDB Serverless on GCP (us-east1)
 
 CREATE TABLE IF NOT EXISTS users (
-  crossmint_user_id TEXT PRIMARY KEY,
+  privy_user_id TEXT PRIMARY KEY,
   wallet_address TEXT NOT NULL,
   email TEXT,
   phone_number TEXT,
@@ -17,7 +17,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_users_wallet_address
   ON users (wallet_address);
 
 CREATE TABLE IF NOT EXISTS phone_otp_challenges (
-  crossmint_user_id TEXT PRIMARY KEY,
+  privy_user_id TEXT PRIMARY KEY,
   phone_number TEXT NOT NULL,
   code_hash TEXT NOT NULL,
   expires_at TIMESTAMPTZ NOT NULL,
@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS phone_otp_challenges (
 CREATE TABLE IF NOT EXISTS transactions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   wallet_address TEXT NOT NULL,
-  crossmint_user_id TEXT,
+  privy_user_id TEXT,
   transaction_id TEXT NOT NULL UNIQUE,
   type TEXT NOT NULL DEFAULT 'offramp',
   status TEXT NOT NULL DEFAULT 'unknown',
@@ -46,8 +46,8 @@ CREATE TABLE IF NOT EXISTS transactions (
 CREATE INDEX IF NOT EXISTS idx_transactions_wallet_address
   ON transactions (wallet_address);
 
-CREATE INDEX IF NOT EXISTS idx_transactions_crossmint_user_id
-  ON transactions (crossmint_user_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_privy_user_id
+  ON transactions (privy_user_id);
 
 CREATE INDEX IF NOT EXISTS idx_transactions_status
   ON transactions (status);
