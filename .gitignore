@@ -51,6 +51,7 @@ broadcast/
 # agents
 .agent/*
 .cursor/*
+!.cursor/environment.json
 .claude/*
 
 # cache
