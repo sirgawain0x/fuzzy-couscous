@@ -30,9 +30,7 @@ export async function GET(request: NextRequest) {
     const row = rows[0];
     return NextResponse.json({
       email: row.email ?? null,
-      emailVerifiedAt: row.email_verified_at
-        ? new Date(row.email_verified_at).toISOString()
-        : null,
+      emailVerifiedAt: row.email_verified_at ? new Date(row.email_verified_at).toISOString() : null,
       phoneNumber: row.phone_number ?? null,
       phoneNumberVerifiedAt: row.phone_number_verified_at
         ? new Date(row.phone_number_verified_at).toISOString()

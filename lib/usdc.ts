@@ -15,7 +15,8 @@ export const getUsdcAddress = (): Address => {
 };
 
 export const getUsdcExplorerUrl = (txHash: string): string => {
-  const baseUrl = appChain.id === baseSepolia.id ? "https://sepolia.basescan.org" : "https://basescan.org";
+  const baseUrl =
+    appChain.id === baseSepolia.id ? "https://sepolia.basescan.org" : "https://basescan.org";
   return `${baseUrl}/tx/${txHash}`;
 };
 

@@ -60,7 +60,7 @@ export const YearnVaultModal = ({
   const [maxLossPercent, setMaxLossPercent] = useState(1); // Default 1% max loss
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  // Hooks for vault interactions - pass wallet client for Crossmint support
+  // Hooks for vault interactions via wagmi (Privy embedded wallet)
   const {
     deposit,
     state: depositState,

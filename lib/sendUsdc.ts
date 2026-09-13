@@ -10,9 +10,7 @@ export type UsdcSendResult = {
   explorerLink: string;
 };
 
-const resolveRecipientAddress = async (
-  recipient: string | { email: string }
-): Promise<Address> => {
+const resolveRecipientAddress = async (recipient: string | { email: string }): Promise<Address> => {
   if (typeof recipient === "string") {
     if (!recipient.startsWith("0x") || recipient.length !== 42) {
       throw new Error("Invalid wallet address");

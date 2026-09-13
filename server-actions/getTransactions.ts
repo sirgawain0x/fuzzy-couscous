@@ -145,11 +145,7 @@ const normalizeTransactionsResponse = (data: unknown): any[] => {
   return [record];
 };
 
-async function storeTransactions(
-  walletAddress: string,
-  transactions: any[],
-  privyUserId?: string
-) {
+async function storeTransactions(walletAddress: string, transactions: any[], privyUserId?: string) {
   if (!transactions.length) return;
   if (!process.env.COCKROACHDB_URL) return;
 

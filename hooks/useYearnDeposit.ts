@@ -1,12 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
-import {
-  useWriteContract,
-  useReadContract,
-  usePublicClient,
-  useWalletClient,
-} from "wagmi";
+import { useWriteContract, useReadContract, usePublicClient, useWalletClient } from "wagmi";
 import { useAppWallet } from "@/hooks/useAppWallet";
 import { Address, type WalletClient } from "viem";
 import { encodeFunctionData } from "viem";
@@ -236,7 +231,7 @@ export const useYearnDeposit = (
 
           let approveHash: `0x${string}`;
 
-          // Use custom wallet client if provided (Crossmint), otherwise use wagmi
+          // Use custom wallet client if provided, otherwise use wagmi
           if (activeWalletClient) {
             // Encode the function data
             const data = encodeFunctionData({
@@ -292,7 +287,7 @@ export const useYearnDeposit = (
 
         let depositHash: `0x${string}`;
 
-        // Use custom wallet client if provided (Crossmint), otherwise use wagmi
+        // Use custom wallet client if provided, otherwise use wagmi
         if (activeWalletClient) {
           // Encode the function data
           const data = encodeFunctionData({

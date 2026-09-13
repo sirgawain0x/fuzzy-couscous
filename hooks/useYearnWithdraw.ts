@@ -20,10 +20,10 @@ type UseYearnWithdrawReturn = {
 /**
  * Hook to handle Yearn V3 vault withdrawals using the redeem function
  * Recommended over withdraw function per Yearn V3 best practices
- * Supports both Crossmint wallet and wagmi wallet
+ * Supports Privy embedded wallet (via wagmi) and external wallets
  *
  * @param vaultAddress - Address of the Yearn V3 vault
- * @param walletClient - Optional wallet client (for Crossmint support)
+ * @param walletClient - Optional wallet client override
  */
 export const useYearnWithdraw = (
   vaultAddress: Address | undefined,
@@ -65,7 +65,7 @@ export const useYearnWithdraw = (
         let redeemHash: `0x${string}`;
 
         try {
-          // Use custom wallet client if provided (Crossmint), otherwise use wagmi
+          // Use custom wallet client if provided, otherwise use wagmi
           if (activeWalletClient) {
             // Get account from wallet client
             const accounts = await activeWalletClient.getAddresses();

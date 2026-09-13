@@ -177,8 +177,8 @@ export const DeployedVaultCard = ({
     chainId: 8453,
   });
 
-  // When deployed via Crossmint (account abstraction), the vault's on-chain owner is the
-  // Crossmint smart wallet contract, not the user's address. Check if that intermediate
+  // When deployed via an embedded smart wallet, the vault's on-chain owner may be the
+  // wallet contract, not the user's EOA. Check if that intermediate
   // contract's owner() resolves to the user (i.e. user → smart wallet → vault).
   const { data: smartWalletOwner } = useReadContract({
     address: onChainOwner as Address | undefined,

@@ -43,8 +43,14 @@ const mapPrivyStatus = (ready: boolean, authenticated: boolean): AuthStatus => {
 };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { ready, authenticated, user: privyUser, logout: privyLogout, getAccessToken, login: privyLogin } =
-    usePrivy();
+  const {
+    ready,
+    authenticated,
+    user: privyUser,
+    logout: privyLogout,
+    getAccessToken,
+    login: privyLogin,
+  } = usePrivy();
 
   const [showLogin, setShowLogin] = useState(false);
   const [jwt, setJwt] = useState<string | null>(null);

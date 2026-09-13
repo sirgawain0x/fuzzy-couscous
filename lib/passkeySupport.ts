@@ -3,8 +3,8 @@
  *
  * Many "in-app browsers" (Gmail, Facebook, Instagram, Twitter, TikTok, LINE,
  * WeChat, etc.) embed a stripped-down WebView that can complete OAuth but
- * cannot create or use WebAuthn credentials. Trying to provision a Crossmint
- * wallet with a passkey signer in those environments fails with no user-
+ * cannot create or use WebAuthn credentials. Passkey-based wallet flows in those
+ * environments fail with no user-
  * actionable feedback. We use these helpers to:
  *
  *   1. Detect those environments up-front so we can show a helpful warning.
@@ -36,7 +36,7 @@ export const isInAppBrowser = (): boolean => {
 
 /**
  * Returns true when the current environment exposes the WebAuthn primitives
- * Crossmint needs to create a passkey. Returns false in SSR and in WebViews
+ * WebAuthn needs to create a passkey. Returns false in SSR and in WebViews
  * that omit the API (or have it but with no platform authenticator).
  *
  * This is intentionally conservative: a `false` result means "definitely no",

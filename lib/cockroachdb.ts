@@ -62,9 +62,7 @@ export async function runMigration(): Promise<void> {
     );
     const { from_exists, to_exists } = rows[0] ?? {};
     if (from_exists && !to_exists) {
-      await db.query(
-        `ALTER TABLE "${table}" RENAME COLUMN "${fromColumn}" TO "${toColumn}"`
-      );
+      await db.query(`ALTER TABLE "${table}" RENAME COLUMN "${fromColumn}" TO "${toColumn}"`);
     }
   };
 

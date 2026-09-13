@@ -166,8 +166,7 @@ export function VaultManagementModal({
           functionName: "splitRevenue",
           args: [[aTokenAddress]],
         });
-        const account = (userWalletAddress ??
-          (await walletClient.getAddresses())?.[0]) as Address;
+        const account = (userWalletAddress ?? (await walletClient.getAddresses())?.[0]) as Address;
         await walletClient.sendTransaction({
           to: feeManagerAddress,
           data,

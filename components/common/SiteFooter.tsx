@@ -33,16 +33,7 @@ export function SiteFooter({ variant = "page" }: { variant?: Variant }) {
           Go to creativeplatform.xyz →
         </a>
       </div>
-      <div className="flex">
-        <Image
-          src="/crossmint-leaf.svg"
-          alt="Powered by Crossmint"
-          priority
-          width={152}
-          height={100}
-          style={{ height: "auto" }}
-        />
-      </div>
+      <p className={cn("text-xs opacity-70", linkColor)}>Powered by Privy + Alchemy on Base</p>
     </footer>
   );
 }

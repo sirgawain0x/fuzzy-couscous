@@ -23,7 +23,9 @@ type AlchemyTransfer = {
 /**
  * Fetches recent USDC transfer activity for a wallet via Alchemy (when configured).
  */
-export async function getWalletActivity(walletAddress: string): Promise<{ events: ActivityEvent[] }> {
+export async function getWalletActivity(
+  walletAddress: string
+): Promise<{ events: ActivityEvent[] }> {
   if (!walletAddress) return { events: [] };
 
   const alchemyKey = process.env.ALCHEMY_API_KEY?.trim();

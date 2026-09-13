@@ -31,8 +31,8 @@ export default function TermsPage() {
       <LegalSection heading="Description of Service">
         <p>
           Creative Finance is a non-custodial platform that provides access to decentralized finance
-          vaults, membership-gated tiers via Unlock Protocol, fiat onramp via Coinbase, and
-          smart-wallet infrastructure via Crossmint, deployed on the Base blockchain. The Platform
+          vaults, membership-gated tiers via Unlock Protocol, fiat onramp via Coinbase, and embedded
+          wallet infrastructure via Privy and Alchemy, deployed on the Base blockchain. The Platform
           enables users to deposit stablecoins (USDC) into yield-bearing strategies powered by
           third-party protocols including Aave and Yearn.
         </p>
@@ -94,7 +94,7 @@ export default function TermsPage() {
       <LegalSection heading="Wallet Custody and Keys">
         <p>
           The Platform is non-custodial. Your funds are held in a smart wallet secured by passkey
-          signers provisioned via Crossmint. Creative Platform Inc. does not hold, control, or have
+          signers provisioned via Privy. Creative Platform Inc. does not hold, control, or have
           access to your funds or private keys. You are solely responsible for maintaining access to
           your passkey and recovery methods. Loss of access to your signers may result in permanent,
           irrecoverable loss of funds.
@@ -109,7 +109,7 @@ export default function TermsPage() {
         <ul className="list-disc space-y-1 pl-6">
           <li>
             <strong>Smart-contract risk:</strong> Bugs, vulnerabilities, or exploits in Creative
-            Finance contracts or underlying protocols (Aave, Yearn, Unlock, Crossmint, Bouncer) can
+            Finance contracts or underlying protocols (Aave, Yearn, Unlock, Privy, Bouncer) can
             result in total loss of deposited funds
           </li>
           <li>
