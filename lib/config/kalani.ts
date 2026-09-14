@@ -1,4 +1,4 @@
-import { Address } from "viem";
+import { getAddress, type Address } from "viem";
 
 /**
  * Kalani Vault Deployment - Creative Bank on Base
@@ -7,6 +7,11 @@ import { Address } from "viem";
  * Deployed: Yearn V3 compatible multi-strategy vault
  */
 
+/** Creative Bank USDC Vault (cbUSDC) — EIP-55 checksummed. */
+const CREATIVE_BANK_VAULT_ADDRESS = getAddress(
+  "0x882652A70f32Bb3606C357E2e314c63eb1c29912"
+);
+
 export const KALANI_VAULT_ADDRESSES = {
   // Factory and Infrastructure
   roleManagerFactory: "0xca12459a931643BF28388c67639b3F352fe9e5Ce" as Address,
@@ -14,7 +19,7 @@ export const KALANI_VAULT_ADDRESSES = {
   addressProvider: "0x1e9778aAD41Aa3E0884C276fB4C2D03C4036Aa0B" as Address,
 
   // Creative Bank USDC Vault (cbUSDC)
-  creativeBankVault: "0x882652a70f32Bb3606C357E2e314C63Eb1C29912" as Address,
+  creativeBankVault: CREATIVE_BANK_VAULT_ADDRESS,
   roleManager: "0xd3b7513ee10f63416b74254d76d0cb892fb70307" as Address,
   registry: "0x2aC025aE91dddcda3BB7D8EaB11efA3608dAF634" as Address,
   accountant: "0x928a31A7727e53CBE9f99fAb39eFb705c933093e" as Address,
@@ -31,8 +36,7 @@ export const KALANI_CHAIN_ID = 8453;
 export const YEARN_USDC_VAULT_BASE = "0xb13CF163d916917d9cD6E836905cA5f12a1dEF4B" as Address;
 
 /** Fallback vault address when NEXT_PUBLIC_CREATIVE_BANK_YEARN_VAULT_ADDRESS is not set (legacy Kalani). */
-const CREATIVE_BANK_VAULT_ADDRESS_FALLBACK =
-  "0x882652a70f32Bb3606C357E2e314C63Eb1C29912" as Address;
+const CREATIVE_BANK_VAULT_ADDRESS_FALLBACK = CREATIVE_BANK_VAULT_ADDRESS;
 
 /**
  * Creative Bank Vault Details (Yearn V3 USDC allocator on Base).
@@ -42,7 +46,7 @@ const CREATIVE_BANK_VAULT_ADDRESS_FALLBACK =
 export const CREATIVE_BANK_VAULT = {
   get address(): Address {
     const env = process.env.NEXT_PUBLIC_CREATIVE_BANK_YEARN_VAULT_ADDRESS;
-    return (env as Address) || CREATIVE_BANK_VAULT_ADDRESS_FALLBACK;
+    return getAddress(env || CREATIVE_BANK_VAULT_ADDRESS_FALLBACK);
   },
   name: "USDC Creative Bank",
   symbol: "cbUSDC",
