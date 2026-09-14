@@ -38,10 +38,6 @@ if (walletConnectMissing) {
   );
 }
 
-if (!privyAppId) {
-  throw new Error("NEXT_PUBLIC_PRIVY_APP_ID is not set");
-}
-
 if (process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_CHAIN_ID === "base-sepolia") {
   console.warn("⚠️ Base Sepolia detected in production. Forcing Base mainnet.");
 }
@@ -62,8 +58,19 @@ export function Providers({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("unhandledrejection", handler);
   }, []);
 
+  // Avoid throwing at module evaluation — that aborts Next.js SSG/prerender on Vercel
+  // when NEXT_PUBLIC_PRIVY_APP_ID is missing from the build environment.
   if (!isMounted) {
     return null;
+  }
+
+  if (!privyAppId) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-6 text-center text-sm text-red-600">
+        NEXT_PUBLIC_PRIVY_APP_ID is not set. Add it in the Vercel project environment
+        variables and redeploy.
+      </div>
+    );
   }
 
   const privyProviderProps = {
