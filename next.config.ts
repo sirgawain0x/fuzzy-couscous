@@ -1,5 +1,4 @@
 import type { NextConfig } from "next";
-import path from "node:path";
 import { withBotId } from "botid/next/config";
 
 // wagmi 3's `wagmi/connectors` barrel re-exports every connector
@@ -9,7 +8,7 @@ import { withBotId } from "botid/next/config";
 //   - webpack: `false` skips the module entirely
 //   - turbopack: redirect to a stub file (boolean is not a valid alias value)
 const SKIPPED_CONNECTOR_DEPS = ["accounts", "@metamask/connect-evm", "@base-org/account"];
-const EMPTY_MODULE = path.resolve(__dirname, "lib/empty-module.ts");
+const EMPTY_MODULE = "./lib/empty-module.ts";
 
 const nextConfig: NextConfig = {
   webpack: (config) => {

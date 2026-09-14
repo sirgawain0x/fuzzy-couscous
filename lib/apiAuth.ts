@@ -5,6 +5,7 @@ import { verifyPrivyAccessToken } from "@/lib/privyAuth";
 export type AuthedSession = {
   userId: string;
   walletAddress: string;
+  accessToken: string;
 };
 
 type AuthResult = { ok: true; session: AuthedSession } | { ok: false; response: NextResponse };
@@ -65,8 +66,23 @@ export async function requireAuthedWallet(
 
   return {
     ok: true,
-    session: { userId, walletAddress: String(rows[0].wallet_address).toLowerCase() },
+    session: {
+      userId,
+      walletAddress: String(rows[0].wallet_address).toLowerCase(),
+      accessToken: token,
+    },
   };
+}
+
+export function extractPrivyAccessToken(
+  request: NextRequest,
+  bodyAuthToken?: unknown
+): string | null {
+  return (
+    extractBearer(request.headers.get("authorization")) ??
+    request.headers.get("x-privy-auth-token") ??
+    (typeof bodyAuthToken === "string" ? bodyAuthToken : null)
+  );
 }
 
 /**
