@@ -2,16 +2,22 @@ import { PrivyClient } from "@privy-io/server-auth";
 
 let privyClient: PrivyClient | null = null;
 
-const getPrivyClient = (): PrivyClient => {
-  if (privyClient) return privyClient;
-
-  const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
-  const appSecret = process.env.PRIVY_APP_SECRET;
+/** Primary env names from .env.template, plus legacy aliases used in some local setups. */
+const resolvePrivyAppCredentials = (): { appId: string; appSecret: string } => {
+  const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID || process.env.PRIVY_APP_ID;
+  const appSecret = process.env.PRIVY_APP_SECRET || process.env.PRIVY_SECRET;
 
   if (!appId || !appSecret) {
     throw new Error("NEXT_PUBLIC_PRIVY_APP_ID and PRIVY_APP_SECRET must be set");
   }
 
+  return { appId, appSecret };
+};
+
+const getPrivyClient = (): PrivyClient => {
+  if (privyClient) return privyClient;
+
+  const { appId, appSecret } = resolvePrivyAppCredentials();
   privyClient = new PrivyClient(appId, appSecret);
   return privyClient;
 };

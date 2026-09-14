@@ -10,16 +10,22 @@ import {
 
 let privyNodeClient: PrivyClient | null = null;
 
-export const getPrivyNodeClient = (): PrivyClient => {
-  if (privyNodeClient) return privyNodeClient;
-
-  const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
-  const appSecret = process.env.PRIVY_APP_SECRET;
+/** Primary env names from .env.template, plus legacy aliases used in some local setups. */
+const resolvePrivyAppCredentials = (): { appId: string; appSecret: string } => {
+  const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID || process.env.PRIVY_APP_ID;
+  const appSecret = process.env.PRIVY_APP_SECRET || process.env.PRIVY_SECRET;
 
   if (!appId || !appSecret) {
     throw new Error("NEXT_PUBLIC_PRIVY_APP_ID and PRIVY_APP_SECRET must be set");
   }
 
+  return { appId, appSecret };
+};
+
+export const getPrivyNodeClient = (): PrivyClient => {
+  if (privyNodeClient) return privyNodeClient;
+
+  const { appId, appSecret } = resolvePrivyAppCredentials();
   privyNodeClient = new PrivyClient({ appId, appSecret });
   return privyNodeClient;
 };
@@ -32,6 +38,12 @@ export type EarnHttpError = {
 export const toEarnHttpError = (error: unknown, fallback: string): EarnHttpError => {
   if (error instanceof APIError) {
     const status = typeof error.status === "number" ? error.status : 500;
+    if (status === 401) {
+      return {
+        status,
+        message: "Privy Earn is misconfigured (invalid app credentials).",
+      };
+    }
     return { status, message: error.message || fallback };
   }
   if (error instanceof Error) {

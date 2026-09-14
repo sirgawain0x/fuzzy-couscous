@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { base } from "viem/chains";
-import { Address, createPublicClient, fallback, http } from "viem";
+import { getAddress, type Address, createPublicClient, fallback, http } from "viem";
 
 import { CREATIVE_BANK_VAULT, KALANI_VAULT_ADDRESSES } from "@/lib/config/kalani";
 
@@ -37,7 +37,7 @@ const resolveVaultAddress = (): Address => {
   const configured =
     process.env.KALANI_VAULT_ADDRESS ?? process.env.NEXT_PUBLIC_KALANI_VAULT_ADDRESS;
   if (configured) {
-    return configured as Address;
+    return getAddress(configured);
   }
 
   return CREATIVE_BANK_VAULT.address;
