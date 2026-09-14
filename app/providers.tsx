@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ComponentProps } from "react";
 import { PrivyProvider } from "@privy-io/react-auth";
 import { WagmiProvider } from "@privy-io/wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -8,7 +8,7 @@ import { Toaster } from "sonner";
 import { AaveProvider, AaveClient, production } from "@aave/react";
 
 import { wagmiConfig } from "@/lib/wagmiConfig";
-import { privyAppId, privyConfig } from "@/lib/privyConfig";
+import { privyApiUrl, privyAppId, privyConfig } from "@/lib/privyConfig";
 import { MembershipProvider } from "@/context/MembershipContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { WalletProvisioningProvider } from "@/context/WalletProvisioningContext";
@@ -38,10 +38,6 @@ if (walletConnectMissing) {
   );
 }
 
-if (!privyAppId) {
-  throw new Error("NEXT_PUBLIC_PRIVY_APP_ID is not set");
-}
-
 if (process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_CHAIN_ID === "base-sepolia") {
   console.warn("⚠️ Base Sepolia detected in production. Forcing Base mainnet.");
 }
@@ -62,12 +58,30 @@ export function Providers({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("unhandledrejection", handler);
   }, []);
 
+  // Avoid throwing at module evaluation — that aborts Next.js SSG/prerender on Vercel
+  // when NEXT_PUBLIC_PRIVY_APP_ID is missing from the build environment.
   if (!isMounted) {
     return null;
   }
 
+  if (!privyAppId) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-6 text-center text-sm text-red-600">
+        NEXT_PUBLIC_PRIVY_APP_ID is not set. Add it in the Vercel project environment
+        variables and redeploy.
+      </div>
+    );
+  }
+
+  const privyProviderProps = {
+    appId: privyAppId,
+    config: privyConfig,
+    ...(privyApiUrl ? { apiUrl: privyApiUrl } : {}),
+  };
+
   return (
-    <PrivyProvider appId={privyAppId} config={privyConfig}>
+    // apiUrl is a documented beta PrivyProvider prop for custom HttpOnly cookie domains.
+    <PrivyProvider {...(privyProviderProps as ComponentProps<typeof PrivyProvider>)}>
       <QueryClientProvider client={queryClient}>
         <WagmiProvider config={wagmiConfig}>
           <AaveProvider client={aaveClient}>
