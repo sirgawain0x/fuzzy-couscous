@@ -5,9 +5,15 @@ import { injected, walletConnect } from "wagmi/connectors";
 import { base, baseSepolia, mainnet } from "wagmi/chains";
 import { Attribution } from "ox/erc8021";
 
+import {
+  ALCHEMY_ROBINHOOD_HTTP_URL,
+  robinhoodChain,
+} from "@/lib/config/robinhood";
+
 // Public RPC endpoints for Base - these are free and rate-limited
 const DEFAULT_BASE_RPC_URL = "https://mainnet.base.org";
 const DEFAULT_BASE_SEPOLIA_RPC_URL = "https://sepolia.base.org";
+const DEFAULT_ROBINHOOD_RPC_URL = "https://rpc.mainnet.chain.robinhood.com";
 
 // Base Builder Code — appended to all transactions for onchain attribution
 const BUILDER_CODE = process.env.NEXT_PUBLIC_BUILDER_CODE;
@@ -120,6 +126,40 @@ const buildEthereumRpcEndpoints = () => {
   ];
 };
 
+// HTTP proxy is primary. Alchemy WS (ALCHEMY_ROBINHOOD_WS_URL) is documented in
+// robinhood.ts but not wired here — webSocket + ssr:true is non-trivial.
+const buildRobinhoodRpcEndpoints = () => {
+  const endpoints = [];
+
+  endpoints.push(
+    http("/api/rpc/robinhood", {
+      batch: { wait: 50 },
+      retryCount: 2,
+      retryDelay: 500,
+    })
+  );
+
+  const alchemyKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
+  if (isValidAlchemyKey(alchemyKey)) {
+    endpoints.push(
+      http(ALCHEMY_ROBINHOOD_HTTP_URL(alchemyKey), {
+        batch: { wait: 50 },
+        retryCount: 2,
+        retryDelay: 500,
+      })
+    );
+  }
+
+  endpoints.push(
+    http(DEFAULT_ROBINHOOD_RPC_URL, {
+      batch: { wait: 50 },
+      retryCount: 1,
+    })
+  );
+
+  return endpoints;
+};
+
 const transports = {
   [base.id]: fallback(buildBaseRpcEndpoints(), {
     rank: true, // Rank transports by speed
@@ -128,6 +168,7 @@ const transports = {
     rank: true,
   }),
   [mainnet.id]: fallback(buildEthereumRpcEndpoints(), { rank: true }),
+  [robinhoodChain.id]: fallback(buildRobinhoodRpcEndpoints(), { rank: true }),
 };
 
 const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
@@ -155,11 +196,11 @@ const connectors = [
 ];
 
 export const wagmiConfig = createConfig({
-  chains: [base, baseSepolia, mainnet],
+  chains: [base, baseSepolia, mainnet, robinhoodChain],
   client({ chain }) {
     return createClient({
       chain,
-      transport: transports[chain.id] ?? http(),
+      transport: transports[chain.id as keyof typeof transports] ?? http(),
       ...(DATA_SUFFIX ? { dataSuffix: DATA_SUFFIX } : {}),
     });
   },

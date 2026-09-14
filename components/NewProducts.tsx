@@ -5,7 +5,22 @@ import { useRouter } from "next/navigation";
 
 import { Container } from "./common/Container";
 
+interface NewProductProps {
+  title: string;
+  description: string;
+  image: string;
+  ctaLabel?: string;
+  ctaHref?: string;
+  fullWidth?: boolean;
+}
+
 const newProducts: NewProductProps[] = [
+  {
+    title: "Trade",
+    description: "Trade stocks and tokenized equities",
+    image: "/globe.svg",
+    fullWidth: true,
+  },
   {
     title: "Earn Yield",
     description: "Earn up to 5% APR",
@@ -34,20 +49,16 @@ const newProducts: NewProductProps[] = [
   },
 ];
 
-interface NewProductProps {
-  title: string;
-  description: string;
-  image: string;
-  ctaLabel?: string;
-  ctaHref?: string;
-}
-
 const NewProduct = ({ title, description, image, ctaLabel, ctaHref }: NewProductProps) => {
   const router = useRouter();
 
   const handleNavigate = (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     if (!ctaHref) {
+      return;
+    }
+    if (ctaHref.startsWith("http://") || ctaHref.startsWith("https://")) {
+      window.open(ctaHref, "_blank", "noopener,noreferrer");
       return;
     }
     router.push(ctaHref);
@@ -59,6 +70,10 @@ const NewProduct = ({ title, description, image, ctaLabel, ctaHref }: NewProduct
     }
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
+      if (ctaHref.startsWith("http://") || ctaHref.startsWith("https://")) {
+        window.open(ctaHref, "_blank", "noopener,noreferrer");
+        return;
+      }
       router.push(ctaHref);
     }
   };
@@ -96,12 +111,36 @@ const NewProduct = ({ title, description, image, ctaLabel, ctaHref }: NewProduct
   );
 };
 
-export function NewProducts() {
-  // Split products into rows of 2
+const buildRows = (products: NewProductProps[]): NewProductProps[][] => {
   const rows: NewProductProps[][] = [];
-  for (let i = 0; i < newProducts.length; i += 2) {
-    rows.push(newProducts.slice(i, i + 2));
+  let pairBuffer: NewProductProps[] = [];
+
+  for (const product of products) {
+    if (product.fullWidth) {
+      if (pairBuffer.length > 0) {
+        rows.push(pairBuffer);
+        pairBuffer = [];
+      }
+      rows.push([product]);
+      continue;
+    }
+
+    pairBuffer.push(product);
+    if (pairBuffer.length === 2) {
+      rows.push(pairBuffer);
+      pairBuffer = [];
+    }
   }
+
+  if (pairBuffer.length > 0) {
+    rows.push(pairBuffer);
+  }
+
+  return rows;
+};
+
+export function NewProducts() {
+  const rows = buildRows(newProducts);
 
   return (
     <div className="my-2 flex flex-col gap-2">

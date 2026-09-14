@@ -1,16 +1,23 @@
 import { toast } from "sonner";
 import { mainnet } from "viem/chains";
+import { robinhoodChain } from "@/lib/config/robinhood";
 import { appChain } from "@/lib/wagmiConfig";
 import { isValidAddress } from "@/lib/utils";
 
-const getExplorerLabel = (chainId: number): string =>
-  chainId === mainnet.id ? "Etherscan" : "Basescan";
+const getExplorerLabel = (chainId: number): string => {
+  if (chainId === mainnet.id) return "Etherscan";
+  if (chainId === robinhoodChain.id) return "Robinhood Explorer";
+  return "Basescan";
+};
 
 export const getTxExplorerUrl = (hash: string, chainId: number = appChain.id): string => {
-  const baseUrl =
-    chainId === mainnet.id
-      ? (mainnet.blockExplorers?.default?.url ?? "https://etherscan.io")
-      : (appChain.blockExplorers?.default?.url ?? "https://basescan.org");
+  if (chainId === mainnet.id) {
+    return `${mainnet.blockExplorers?.default?.url ?? "https://etherscan.io"}/tx/${hash}`;
+  }
+  if (chainId === robinhoodChain.id) {
+    return `${robinhoodChain.blockExplorers.default.url}/tx/${hash}`;
+  }
+  const baseUrl = appChain.blockExplorers?.default?.url ?? "https://basescan.org";
   return `${baseUrl}/tx/${hash}`;
 };
 

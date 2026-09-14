@@ -1,6 +1,7 @@
 import type { PrivyClientConfig } from "@privy-io/react-auth";
 import { base, baseSepolia } from "viem/chains";
 
+import { robinhoodChain } from "@/lib/config/robinhood";
 import { appChain } from "@/lib/wagmiConfig";
 
 const defaultChain = appChain.id === base.id ? base : baseSepolia;
@@ -27,5 +28,5 @@ export const privyConfig: PrivyClientConfig = {
     },
   },
   defaultChain,
-  supportedChains: [base, baseSepolia],
+  supportedChains: [base, baseSepolia, robinhoodChain],
 };

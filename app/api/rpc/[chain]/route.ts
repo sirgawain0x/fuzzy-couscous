@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 
-type AllowedChain = "mainnet" | "base" | "base-sepolia";
+type AllowedChain = "mainnet" | "base" | "base-sepolia" | "robinhood";
 
-const ALLOWED_CHAINS: ReadonlySet<AllowedChain> = new Set(["mainnet", "base", "base-sepolia"]);
+const ALLOWED_CHAINS: ReadonlySet<AllowedChain> = new Set([
+  "mainnet",
+  "base",
+  "base-sepolia",
+  "robinhood",
+]);
 
 /** Return an ordered list of upstream RPC URLs to try (first = highest priority). */
 const getOrderedRpcUrls = (chain: AllowedChain): string[] => {
@@ -25,6 +30,11 @@ const getOrderedRpcUrls = (chain: AllowedChain): string[] => {
     const custom = process.env.BASE_SEPOLIA_RPC_URL?.trim();
     if (custom) urls.push(custom);
     urls.push("https://sepolia.base.org");
+  } else if (chain === "robinhood") {
+    if (alchemyKey) urls.push(`https://robinhood-mainnet.g.alchemy.com/v2/${alchemyKey}`);
+    const custom = process.env.ROBINHOOD_RPC_URL?.trim();
+    if (custom) urls.push(custom);
+    urls.push("https://rpc.mainnet.chain.robinhood.com");
   }
 
   // Deduplicate while preserving order
