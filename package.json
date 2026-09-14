@@ -17,6 +17,7 @@
     "@coinbase/cdp-sdk": "^1.48.0",
     "@heroicons/react": "^2.2.0",
     "@nexusmutual/sdk": "^1.43.0",
+    "@privy-io/node": "^0.34.0",
     "@privy-io/react-auth": "^3.42.0",
     "@privy-io/server-auth": "^1.32.5",
     "@privy-io/wagmi": "^4.0.17",

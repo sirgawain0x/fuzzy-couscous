@@ -6,6 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useAppWallet } from "@/hooks/useAppWallet";
 
 import { StrategyCard } from "@/components/strategies/StrategyCard";
+import { PrivyEarnVaultCard } from "@/components/privy-earn/PrivyEarnVaultCard";
 import { PremiumGuard } from "@/components/access/PremiumGuard";
 import { VaultDeployModal } from "@/components/vaults/VaultDeployModal";
 import { DeployedVaultCard } from "@/components/vaults/DeployedVaultCard";
@@ -35,12 +36,14 @@ function StrategiesContent({
   baseReserve,
   kalani,
   userUsdcBalance,
+  isBalanceLoading,
 }: {
   walletAddress: string | null;
   onDeployClick: () => void;
   baseReserve: ReturnType<typeof useBaseUsdcReserve>;
   kalani: ReturnType<typeof useKalaniApr>;
   userUsdcBalance: bigint;
+  isBalanceLoading: boolean;
 }) {
   const { vaults: userPositionVaults, loading: userPositionsLoading } = useUserVaultPositions(
     walletAddress ?? undefined
@@ -111,6 +114,10 @@ function StrategiesContent({
   return (
     <>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <PrivyEarnVaultCard
+          userAssetBalance={userUsdcBalance}
+          isBalanceLoading={isBalanceLoading}
+        />
         <StrategyCard
           title="Aave USDC Earn Vault"
           subtitle="Deploy a branded ERC-4626 vault sourcing yield from the Base USDC reserve."
@@ -264,7 +271,7 @@ export default function StrategiesPage() {
 
   const baseReserve = useBaseUsdcReserve();
   const kalani = useKalaniApr();
-  const { balances } = useBalance();
+  const { balances, isLoading: isBalanceLoading } = useBalance();
 
   const userUsdcBalance = useMemo(() => {
     if (!balances?.usdc?.amount) return BigInt(0);
@@ -324,8 +331,8 @@ export default function StrategiesPage() {
             Programmatic Yield Strategies
           </h1>
           <p className="mx-auto max-w-2xl text-center text-sm leading-6 text-slate-600">
-            Launch an Aave Earn Vault backed by the Base USDC reserve, deposit into Yearn V3
-            ERC-4626 compliant vaults, and unlock our token-gated Kalani premium strategies for
+            Launch an Aave Earn Vault backed by the Base USDC reserve, deposit into Privy Earn or
+            Yearn V3 ERC-4626 vaults, and unlock our token-gated Kalani premium strategies for
             high-touch treasury automation.
           </p>
         </div>
@@ -369,6 +376,7 @@ export default function StrategiesPage() {
         baseReserve={baseReserve}
         kalani={kalani}
         userUsdcBalance={userUsdcBalance}
+        isBalanceLoading={isBalanceLoading}
       />
 
       <VaultDeployModal
