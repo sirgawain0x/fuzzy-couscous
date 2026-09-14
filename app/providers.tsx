@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ComponentProps } from "react";
 import { PrivyProvider } from "@privy-io/react-auth";
 import { WagmiProvider } from "@privy-io/wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -8,7 +8,7 @@ import { Toaster } from "sonner";
 import { AaveProvider, AaveClient, production } from "@aave/react";
 
 import { wagmiConfig } from "@/lib/wagmiConfig";
-import { privyAppId, privyConfig } from "@/lib/privyConfig";
+import { privyApiUrl, privyAppId, privyConfig } from "@/lib/privyConfig";
 import { MembershipProvider } from "@/context/MembershipContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { WalletProvisioningProvider } from "@/context/WalletProvisioningContext";
@@ -66,8 +66,15 @@ export function Providers({ children }: { children: React.ReactNode }) {
     return null;
   }
 
+  const privyProviderProps = {
+    appId: privyAppId,
+    config: privyConfig,
+    ...(privyApiUrl ? { apiUrl: privyApiUrl } : {}),
+  };
+
   return (
-    <PrivyProvider appId={privyAppId} config={privyConfig}>
+    // apiUrl is a documented beta PrivyProvider prop for custom HttpOnly cookie domains.
+    <PrivyProvider {...(privyProviderProps as ComponentProps<typeof PrivyProvider>)}>
       <QueryClientProvider client={queryClient}>
         <WagmiProvider config={wagmiConfig}>
           <AaveProvider client={aaveClient}>
