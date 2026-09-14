@@ -24,7 +24,6 @@ export function FeeBreakdown({ performanceFee, hasMembership }: FeeBreakdownProp
 
   // Example on $10,000 profit
   const exampleProfit = 10000;
-  const totalFee = exampleProfit * fee;
   const aaveDollars = exampleProfit * aavePercent;
   const yearnDollars = exampleProfit * yearnPercent;
   const managerDollars = exampleProfit * netManager;
@@ -35,6 +34,10 @@ export function FeeBreakdown({ performanceFee, hasMembership }: FeeBreakdownProp
         <h5 className="text-xs font-semibold text-slate-600 uppercase">Fee Breakdown</h5>
         <span className="text-xs text-slate-400">on ${exampleProfit.toLocaleString()} profit</span>
       </div>
+
+      <p className="text-xs text-slate-500">
+        How the performance fee is split (yield still comes from Aave).
+      </p>
 
       <div className="flex flex-col gap-1 text-xs">
         <div className="flex justify-between">
@@ -50,7 +53,12 @@ export function FeeBreakdown({ performanceFee, hasMembership }: FeeBreakdownProp
         </div>
 
         <div className="flex justify-between">
-          <span className="text-slate-500">Yearn V3 (10% of manager)</span>
+          <span
+            className="text-slate-500"
+            title="Yearn Accountant receives a platform fee share of the manager half. This is not the vault yield source — assets still earn on Aave."
+          >
+            Yearn Accountant (platform fee share)
+          </span>
           <span className="font-medium text-slate-700">
             {formatPct(yearnPercent)} &middot; ${yearnDollars.toFixed(0)}
           </span>
