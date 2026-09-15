@@ -185,8 +185,8 @@ const connectors = [
         walletConnect({
           projectId: walletConnectProjectId,
           metadata: {
-            name: "Creative Bank",
-            description: "Creative Bank DeFi access",
+            name: "Creative Finance",
+            description: "Creative Finance DeFi access",
             url: APP_URL,
             icons: [`${APP_URL}/icon.png`],
           },

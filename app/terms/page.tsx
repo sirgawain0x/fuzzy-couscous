@@ -81,7 +81,7 @@ export default function TermsPage() {
         <p>
           Fees are distributed as follows: 50% to the underlying Aave integration, 10% to the
           underlying Yearn integration (where applicable), and the remainder to the vault manager or
-          Creative Bank Treasury. Brand and Creator members may configure a Fee Receiver address to
+          Creative Finance Treasury. Brand and Creator members may configure a Fee Receiver address to
           route their manager share to a wallet they control. Network gas fees on Base are borne by
           the user and are separate from performance fees.
         </p>

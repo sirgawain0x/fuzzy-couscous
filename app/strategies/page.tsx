@@ -158,7 +158,7 @@ function StrategiesContent({
             assetSymbol={CREATIVE_BANK_VAULT.assetSymbol}
             assetDecimals={6}
             name={CREATIVE_BANK_VAULT.name}
-            description="Premium Yearn V3 multi-strategy vault exclusively for Creative Bank members. Features automated yield optimization, bespoke role management, and professional treasury automation powered by Kalani."
+            description="Premium Yearn V3 multi-strategy vault exclusively for Creative Finance members. Features automated yield optimization, bespoke role management, and professional treasury automation powered by Kalani."
             estimatedApr={kalani.loading ? undefined : kalani.error ? undefined : kalani.apr}
             userAssetBalance={userUsdcBalance}
             bouncerAddress={CREATIVE_BANK_BOUNCER_ADDRESS}
@@ -309,7 +309,7 @@ export default function StrategiesPage() {
         <div className="flex flex-wrap items-center justify-end gap-2">
           <Link
             href="/"
-            aria-label="Return to Creative Bank home"
+            aria-label="Return to Creative Finance home"
             className="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-500"
           >
             Back to Home
@@ -325,7 +325,7 @@ export default function StrategiesPage() {
         </div>
         <div className="flex flex-col gap-3 rounded-3xl border border-white/40 bg-white/80 p-6 shadow-lg shadow-slate-900/10 backdrop-blur">
           <p className="text-xs font-semibold tracking-wide text-slate-600 uppercase">
-            Creative Bank DeFi Suite
+            Creative Finance DeFi Suite
           </p>
           <h1 className="text-center text-3xl font-semibold text-slate-900 md:text-4xl">
             Programmatic Yield Strategies

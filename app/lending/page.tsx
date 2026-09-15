@@ -480,7 +480,7 @@ export default function LendingPage() {
         <div className="flex flex-wrap items-center justify-end gap-2">
           <Link
             href="/"
-            aria-label="Return to Creative Bank home"
+            aria-label="Return to Creative Finance home"
             className="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-500"
           >
             Back to Home

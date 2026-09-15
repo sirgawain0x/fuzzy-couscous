@@ -2,10 +2,10 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Creative Bank",
-    short_name: "Creative Bank",
+    name: "Creative Finance",
+    short_name: "Creative Finance",
     description:
-      "Banking designed for creatives. Manage your income, track expenses, and save for your dreams.",
+      "Finance designed for creatives. Manage your income, track expenses, and save for your dreams.",
     start_url: "/",
     display: "standalone",
     background_color: "#000000",
