@@ -13,7 +13,7 @@ export const PRIVY_EARN_DISPLAY = {
   title: "Privy Earn USDC",
   subtitle: "Yield vault with Privy fee wrapper on Base",
   description:
-    "Deposit USDC from your Creative Bank wallet into a yield vault. Privy handles approval and deposit in one action, and routes a share of yield to Creative Bank via the dashboard fee wrapper.",
+    "Deposit USDC from your Creative Finance wallet into a yield vault. Privy handles approval and deposit in one action, and routes a share of yield to Creative Finance via the dashboard fee wrapper.",
 } as const;
 
 export const PRIVY_EARN_DISCLAIMER =

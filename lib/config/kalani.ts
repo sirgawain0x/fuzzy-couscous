@@ -8,9 +8,7 @@ import { getAddress, type Address } from "viem";
  */
 
 /** Creative Bank USDC Vault (cbUSDC) — EIP-55 checksummed. */
-const CREATIVE_BANK_VAULT_ADDRESS = getAddress(
-  "0x882652A70f32Bb3606C357E2e314c63eb1c29912"
-);
+const CREATIVE_BANK_VAULT_ADDRESS = getAddress("0x882652A70f32Bb3606C357E2e314c63eb1c29912");
 
 export const KALANI_VAULT_ADDRESSES = {
   // Factory and Infrastructure
@@ -48,12 +46,12 @@ export const CREATIVE_BANK_VAULT = {
     const env = process.env.NEXT_PUBLIC_CREATIVE_BANK_YEARN_VAULT_ADDRESS;
     return getAddress(env || CREATIVE_BANK_VAULT_ADDRESS_FALLBACK);
   },
-  name: "USDC Creative Bank",
+  name: "USDC Creative Finance",
   symbol: "cbUSDC",
   asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as Address, // USDC
   assetName: "USD Coin",
   assetSymbol: "USDC",
-  type: "Creative Bank Allocator", // Yearn V3 multi-strategy
+  type: "Creative Finance Allocator", // Yearn V3 multi-strategy
 } as const;
 
 /**

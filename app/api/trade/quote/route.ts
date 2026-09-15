@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { isAddress } from "viem";
 
 import { ROBINHOOD_CHAIN_ID, ZERO_EX_SWAP_BASE_URL } from "@/lib/config/robinhood";
+import { assertTradeAccess } from "@/lib/trade/eligibility";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -14,6 +15,9 @@ const parseMode = (value: string | null): QuoteMode => {
 };
 
 export async function GET(request: Request) {
+  const denied = assertTradeAccess(request);
+  if (denied) return denied;
+
   const apiKey = process.env.ZERO_EX_API_KEY?.trim();
   if (!apiKey) {
     return NextResponse.json(

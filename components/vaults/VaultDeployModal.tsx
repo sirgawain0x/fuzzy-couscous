@@ -230,7 +230,7 @@ export function VaultDeployModal({
         percent: bigDecimal(90),
       });
     } else {
-      // Non-member: 90% goes to Creative Bank Treasury
+      // Non-member: 90% goes to Creative Finance Treasury
       entries.push({
         address: evmAddress(CREATIVE_TREASURY_ADDRESS),
         percent: bigDecimal(90),
@@ -705,7 +705,7 @@ export function VaultDeployModal({
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
             <p className="font-medium">Standard fee tier (20%)</p>
             <p className="mt-1 text-xs">
-              Performance fees are routed to the Creative Bank Treasury. Unlock a membership to
+              Performance fees are routed to the Creative Finance Treasury. Unlock a membership to
               reduce fees to 10% and receive yield directly.
             </p>
           </div>

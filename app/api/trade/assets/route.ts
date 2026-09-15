@@ -7,6 +7,7 @@ import {
   ROBINHOOD_CHAIN_ID,
   TRADE_WATCHLIST_SYMBOLS,
 } from "@/lib/config/robinhood";
+import { assertTradeAccess } from "@/lib/trade/eligibility";
 import { applyMultiplierToPrice } from "@/lib/trade/pricing";
 import type { StockTokenAsset, StockTokenTradingCapabilities } from "@/lib/trade/types";
 
@@ -98,7 +99,10 @@ const fetchPricesForSymbols = async (symbols: string[]): Promise<Map<string, Rhj
   return map;
 };
 
-export async function GET() {
+export async function GET(request: Request) {
+  const denied = assertTradeAccess(request);
+  if (denied) return denied;
+
   try {
     const assetsRes = await fetch(RHJ_ASSETS_URL, {
       headers: { accept: "application/json" },
@@ -147,7 +151,9 @@ export async function GET() {
       { assets, chainId: ROBINHOOD_CHAIN_ID },
       {
         headers: {
-          "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60",
+          // no-store: response is gated by geo + attestation cookie; public CDN
+          // cache would otherwise serve eligible payloads to denied clients.
+          "Cache-Control": "no-store",
         },
       }
     );

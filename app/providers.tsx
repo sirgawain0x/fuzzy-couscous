@@ -67,8 +67,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
   if (!privyAppId) {
     return (
       <div className="flex min-h-screen items-center justify-center p-6 text-center text-sm text-red-600">
-        NEXT_PUBLIC_PRIVY_APP_ID is not set. Add it in the Vercel project environment
-        variables and redeploy.
+        NEXT_PUBLIC_PRIVY_APP_ID is not set. Add it in the Vercel project environment variables and
+        redeploy.
       </div>
     );
   }

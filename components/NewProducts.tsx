@@ -17,8 +17,10 @@ interface NewProductProps {
 const newProducts: NewProductProps[] = [
   {
     title: "Trade",
-    description: "Trade stocks and tokenized equities",
+    description: "Trade tokenized stocks on Robinhood Chain",
     image: "/globe.svg",
+    ctaLabel: "Go to Trading",
+    ctaHref: "/trade",
     fullWidth: true,
   },
   {
