@@ -151,7 +151,9 @@ export async function GET(request: Request) {
       { assets, chainId: ROBINHOOD_CHAIN_ID },
       {
         headers: {
-          "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60",
+          // no-store: response is gated by geo + attestation cookie; public CDN
+          // cache would otherwise serve eligible payloads to denied clients.
+          "Cache-Control": "no-store",
         },
       }
     );
