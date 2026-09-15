@@ -17,10 +17,7 @@ export async function POST(request: Request) {
     return buildTradeDenialResponse(geo.reason ?? "geo_unknown", country);
   }
 
-  const response = NextResponse.json(
-    { ok: true },
-    { headers: { "Cache-Control": "no-store" } }
-  );
+  const response = NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
   response.headers.append("Set-Cookie", createAttestationCookieHeader());
   return response;
 }

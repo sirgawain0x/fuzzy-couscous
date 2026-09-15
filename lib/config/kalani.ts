@@ -8,9 +8,7 @@ import { getAddress, type Address } from "viem";
  */
 
 /** Creative Bank USDC Vault (cbUSDC) — EIP-55 checksummed. */
-const CREATIVE_BANK_VAULT_ADDRESS = getAddress(
-  "0x882652A70f32Bb3606C357E2e314c63eb1c29912"
-);
+const CREATIVE_BANK_VAULT_ADDRESS = getAddress("0x882652A70f32Bb3606C357E2e314c63eb1c29912");
 
 export const KALANI_VAULT_ADDRESSES = {
   // Factory and Infrastructure

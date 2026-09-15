@@ -5,10 +5,7 @@ import { injected, walletConnect } from "wagmi/connectors";
 import { base, baseSepolia, mainnet } from "wagmi/chains";
 import { Attribution } from "ox/erc8021";
 
-import {
-  ALCHEMY_ROBINHOOD_HTTP_URL,
-  robinhoodChain,
-} from "@/lib/config/robinhood";
+import { ALCHEMY_ROBINHOOD_HTTP_URL, robinhoodChain } from "@/lib/config/robinhood";
 
 // Public RPC endpoints for Base - these are free and rate-limited
 const DEFAULT_BASE_RPC_URL = "https://mainnet.base.org";
@@ -34,7 +31,7 @@ export const appChain = (() => {
 })();
 
 // Validate Alchemy API key format (should be alphanumeric with hyphens, not empty)
-const isValidAlchemyKey = (key: string | undefined): boolean => {
+const isValidAlchemyKey = (key: string | undefined): key is string => {
   if (!key || key.trim().length === 0) return false;
   // Alchemy keys are typically alphanumeric with hyphens, at least 20 chars
   // Exclude keys that look like placeholder values

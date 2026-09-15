@@ -74,7 +74,9 @@ export const TradeEligibilityGate = ({ onReady }: Props) => {
       } catch (error) {
         if (cancelled) return;
         const message =
-          error instanceof Error ? error.message : "Unable to verify eligibility. Please try again.";
+          error instanceof Error
+            ? error.message
+            : "Unable to verify eligibility. Please try again.";
         setState((prev) => ({
           ...prev,
           loading: false,
@@ -117,9 +119,10 @@ export const TradeEligibilityGate = ({ onReady }: Props) => {
       });
 
       if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as
-          | { error?: string; code?: string }
-          | null;
+        const body = (await response.json().catch(() => null)) as {
+          error?: string;
+          code?: string;
+        } | null;
         throw new Error(body?.error ?? "Attestation failed. Please try again.");
       }
 

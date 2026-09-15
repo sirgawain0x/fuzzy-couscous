@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server";
 
-import {
-  evaluateGeoAccess,
-  getRequestCountry,
-  hasTradeAttestation,
-} from "@/lib/trade/eligibility";
+import { evaluateGeoAccess, getRequestCountry, hasTradeAttestation } from "@/lib/trade/eligibility";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
