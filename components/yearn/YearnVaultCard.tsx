@@ -81,7 +81,7 @@ export const YearnVaultCard = ({
   const depositDisabled = Boolean(bouncerAddress && (bouncerLoading || !canDepositByBouncer));
   const depositTitle =
     bouncerAddress && !canDepositByBouncer && !bouncerLoading
-      ? "Kalani Vault is for members only. Get a Creative Brand, Investor, or Creator NFT to deposit."
+      ? "Kalani Vault is for members only. Get a Creative Brand, Professional, or Creator NFT to deposit."
       : undefined;
 
   const handleOpenDeposit = useCallback(() => {

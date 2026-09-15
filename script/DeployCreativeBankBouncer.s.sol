@@ -11,7 +11,7 @@ import {CreativeBankBouncer} from "../contracts/CreativeBankBouncer.sol";
  *
  * @dev Membership NFT addresses (Unlock locks on Base):
  *      - Creative Brand:    0x9c3744c96200A52D05a630D4AEC0db707D7509Be
- *      - Creative Investor: 0x13b818dAf7016B302383737bA60c3A39FeF231cF
+ *      - Creative Professional: 0x13b818dAf7016B302383737bA60c3A39FeF231cF
  *      - Creative Creator:  0xf7c4cd399395D80f9d61FDe833849106775269c6
  *
  *      Yearn V3 Accountant on Base:

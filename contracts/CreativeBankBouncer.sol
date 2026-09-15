@@ -4,7 +4,7 @@ pragma solidity ^0.8.26;
 /**
  * @title CreativeBankBouncer
  * @notice Yearn V3 deposit limit module that gates vault deposits behind Creative Bank
- *         membership (Creative Brand, Creative Investor, or Creative Creator NFT)
+ *         membership (Creative Brand, Creative Professional, or Creative Creator NFT)
  *         and enforces a minimum performance fee floor on-chain.
  *
  * @dev Fee Floor Enforcement:

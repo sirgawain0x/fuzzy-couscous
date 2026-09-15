@@ -1,6 +1,6 @@
 import { Address } from "viem";
 
-export type MembershipTier = "Creative Brand" | "Creative Investor" | "Creative Creator";
+export type MembershipTier = "Creative Brand" | "Creative Professional" | "Creative Creator";
 
 export type MembershipLock = {
   tier: MembershipTier;
@@ -15,7 +15,7 @@ export const MEMBERSHIP_LOCKS: MembershipLock[] = [
     priority: 3,
   },
   {
-    tier: "Creative Investor",
+    tier: "Creative Professional",
     address: "0x13b818daf7016b302383737ba60c3a39fef231cf",
     priority: 2,
   },
@@ -30,7 +30,7 @@ export const MEMBERSHIP_LOCKS: MembershipLock[] = [
 export const TIER_PRIORITY: Record<MembershipTier | "None", number> = {
   None: 0,
   "Creative Creator": 1,
-  "Creative Investor": 2,
+  "Creative Professional": 2,
   "Creative Brand": 3,
 };
 
@@ -40,15 +40,15 @@ export const TIER_PRICING: Record<
   { price: string; duration: string; features: string[] }
 > = {
   "Creative Creator": {
-    price: "$30",
-    duration: "3 months",
+    price: "$10",
+    duration: "1 month",
     features: [
       "10% performance fee floor (save 50%)",
       "Premium yield strategies",
       "Priority transaction processing",
     ],
   },
-  "Creative Investor": {
+  "Creative Professional": {
     price: "$100",
     duration: "1 month",
     features: ["All Creative features", "Higher deposit limits", "Advanced analytics"],
@@ -57,7 +57,7 @@ export const TIER_PRICING: Record<
     price: "$1,000",
     duration: "1 month",
     features: [
-      "All Investor features",
+      "All Professional features",
       "Vault Factory access",
       "Custom Fee Receiver address",
       "White-label treasury tools",

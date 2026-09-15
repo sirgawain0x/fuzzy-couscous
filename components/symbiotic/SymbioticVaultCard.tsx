@@ -17,7 +17,7 @@ interface SymbioticVaultCardProps {
 
 /**
  * Strategy card for Symbiotic restaking vaults on Ethereum mainnet.
- * Gated behind Investor/Brand membership via PremiumGuard in the parent page.
+ * Gated behind Professional/Brand membership via PremiumGuard in the parent page.
  */
 export function SymbioticVaultCard({ vault }: SymbioticVaultCardProps) {
   const chainId = useChainId();

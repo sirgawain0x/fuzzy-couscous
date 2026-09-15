@@ -219,7 +219,7 @@ export function VaultDeployModal({
     });
 
     if (hasMembership) {
-      // Member: Fee Receiver (Brand/Creator) or deployer wallet (Investor)
+      // Member: Fee Receiver (Brand/Creator) or deployer wallet (Professional)
       const receiver =
         canSetFeeReceiver && feeReceiverAddress.trim()
           ? feeReceiverAddress.trim()

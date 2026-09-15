@@ -35,7 +35,7 @@ const defaultState: MembershipContextValue = {
   isLoading: true,
   locks: {
     "Creative Brand": { hasValidKey: false, expiresAtMs: null },
-    "Creative Investor": { hasValidKey: false, expiresAtMs: null },
+    "Creative Professional": { hasValidKey: false, expiresAtMs: null },
     "Creative Creator": { hasValidKey: false, expiresAtMs: null },
   },
   refresh: async () => undefined,
@@ -51,7 +51,7 @@ const createInitialLockState = () =>
     },
     {
       "Creative Brand": { hasValidKey: false, expiresAtMs: null },
-      "Creative Investor": { hasValidKey: false, expiresAtMs: null },
+      "Creative Professional": { hasValidKey: false, expiresAtMs: null },
       "Creative Creator": { hasValidKey: false, expiresAtMs: null },
     }
   );
