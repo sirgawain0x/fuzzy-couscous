@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 
 import { CopyWrapper } from "@/components/common/CopyWrapper";
+import { TradeEligibilityGate } from "@/components/trade/TradeEligibilityGate";
 import { TradeSwapPanel } from "@/components/trade/TradeSwapPanel";
 import { useAuth } from "@/context/AuthContext";
 import { useMembership } from "@/context/MembershipContext";
@@ -14,6 +15,7 @@ export default function TradePage() {
   const { status: walletStatus, address } = useAppWallet();
   const { status: authStatus } = useAuth();
   const membership = useMembership();
+  const [eligible, setEligible] = useState(false);
 
   const walletAddress = useMemo(() => {
     if (!address || authStatus !== "logged-in") return null;
@@ -32,7 +34,7 @@ export default function TradePage() {
         <div className="flex flex-wrap items-center justify-end gap-2">
           <Link
             href="/"
-            aria-label="Return to Creative Bank home"
+            aria-label="Return to Creative Finance home"
             className="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-500"
           >
             Back to Home
@@ -69,7 +71,9 @@ export default function TradePage() {
         </div>
       </header>
 
-      {!walletAddress ? (
+      {!eligible ? (
+        <TradeEligibilityGate onReady={() => setEligible(true)} />
+      ) : !walletAddress ? (
         <div className="rounded-3xl border border-slate-200 bg-white/90 p-8 text-center text-sm text-slate-600">
           Sign in to connect your wallet and trade Stock Tokens on Robinhood Chain.
         </div>
