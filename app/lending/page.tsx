@@ -356,8 +356,8 @@ function LendingContent({
         isolatedReserve={baseReserve.reserve ?? undefined}
       />
 
-      {/* E-Mode Selector — Investor+ tier */}
-      <PremiumGuard requiredTier="Creative Investor">
+      {/* E-Mode Selector — Professional+ tier */}
+      <PremiumGuard requiredTier="Creative Professional">
         {baseReserve.market && walletAddress && (
           <EModeSelector
             market={baseReserve.market}

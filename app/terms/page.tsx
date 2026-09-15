@@ -73,7 +73,7 @@ export default function TermsPage() {
             <strong>Non-members:</strong> 20% performance fee on net vault earnings
           </li>
           <li>
-            <strong>Members (Creative, Investor, Brand tiers):</strong> 10% performance fee floor,
+            <strong>Members (Creative, Professional, Brand tiers):</strong> 10% performance fee floor,
             enforced on-chain by the Bouncer contract; members may set fees above the floor but
             never below
           </li>

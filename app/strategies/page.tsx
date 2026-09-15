@@ -151,7 +151,7 @@ function StrategiesContent({
           }
         />
 
-        <PremiumGuard requiredTier="Creative Investor">
+        <PremiumGuard requiredTier="Creative Professional">
           <YearnVaultCard
             vaultAddress={CREATIVE_BANK_VAULT.address}
             assetAddress={CREATIVE_BANK_VAULT.asset}
@@ -171,9 +171,9 @@ function StrategiesContent({
         <ATokenBalance />
       </section>
 
-      {/* Symbiotic Restaking — Investor+ tier */}
+      {/* Symbiotic Restaking — Professional+ tier */}
       <section className="mt-10">
-        <PremiumGuard requiredTier="Creative Investor" silent>
+        <PremiumGuard requiredTier="Creative Professional" silent>
           <div className="mb-4 flex flex-col gap-1">
             <h2 className="text-xl font-semibold text-slate-900">Restaking Vaults</h2>
             <p className="text-sm text-slate-600">

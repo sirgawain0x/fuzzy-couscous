@@ -57,7 +57,7 @@ export const CREATIVE_BANK_VAULT = {
 /**
  * Creative Bank Bouncer (Deposit Limit Module)
  * Set CREATIVE_BANK_BOUNCER_ADDRESS after deploying CreativeBankBouncer.sol
- * with (brandNFT, investorNFT, creatorNFT) = Creative Brand, Creative Investor, Creative Creator lock addresses.
+ * with (brandNFT, investorNFT, creatorNFT) = Creative Brand, Creative Professional, Creative Creator lock addresses.
  * Then call set_deposit_limit_module(bouncerAddress) on the Yearn vault.
  */
 export const CREATIVE_BANK_BOUNCER_ADDRESS: Address | undefined = process.env

@@ -22,7 +22,7 @@ interface EModeSelectorProps {
 
 /**
  * E-Mode selector for Aave V3.
- * Allows Investor+ members to enable Efficiency Mode for correlated assets,
+ * Allows Professional+ members to enable Efficiency Mode for correlated assets,
  * maximizing LTV and borrowing power for stablecoins or ETH-correlated tokens.
  */
 export function EModeSelector({

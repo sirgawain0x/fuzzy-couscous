@@ -3,7 +3,7 @@ import { type Address } from "viem";
 /**
  * Symbiotic Protocol Configuration
  * Restaking vaults on Ethereum Mainnet
- * Available to Investor and Brand tier members
+ * Available to Professional and Brand tier members
  */
 
 export const SYMBIOTIC_CHAIN_ID = 1; // Ethereum Mainnet
