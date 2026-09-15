@@ -28,7 +28,7 @@ function ensureTxHash(value: unknown): `0x${string}` {
 const YEARN_VAULT_CHAIN_ID = 8453;
 
 const BOUNCER_MESSAGE =
-  "Deposit failed: This vault is for Creative Bank members only. Get a Creative Brand, Investor, or Creator NFT to deposit.";
+  "Deposit failed: This vault is for Creative Finance members only. Get a Creative Brand, Investor, or Creator NFT to deposit.";
 const WRONG_NETWORK_MESSAGE = "Please switch your wallet to Base mainnet and try again.";
 
 function extractRevertReason(error: unknown): string {

@@ -23,7 +23,7 @@ export const MULTI_STRATEGY_VAULT = {
   },
 
   // Vault metadata
-  name: "Creative Bank Multi-Strategy USDC",
+  name: "Creative Finance Multi-Strategy USDC",
   symbol: "cbUSDC-v2",
   asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as Address, // USDC
   assetName: "USD Coin",

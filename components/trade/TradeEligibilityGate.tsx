@@ -25,6 +25,16 @@ type Props = {
 
 const ATTEST_CHECKBOX_ID = "trade-eligibility-attest";
 
+const LoadingCard = ({ message }: { message: string }) => (
+  <div
+    className="rounded-3xl border border-slate-200 bg-white/90 p-8 text-center text-sm text-slate-600"
+    aria-busy="true"
+    aria-live="polite"
+  >
+    {message}
+  </div>
+);
+
 export const TradeEligibilityGate = ({ onReady }: Props) => {
   const [state, setState] = useState<GateState>({
     allowed: false,
@@ -36,12 +46,17 @@ export const TradeEligibilityGate = ({ onReady }: Props) => {
   const [checked, setChecked] = useState(false);
   const [isPosting, setIsPosting] = useState(false);
   const [attestError, setAttestError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
   const readyCalledRef = useRef(false);
 
   const handleReady = () => {
     if (readyCalledRef.current) return;
     readyCalledRef.current = true;
     onReady();
+  };
+
+  const handleRetry = () => {
+    setRetryKey((prev) => prev + 1);
   };
 
   useEffect(() => {
@@ -90,7 +105,7 @@ export const TradeEligibilityGate = ({ onReady }: Props) => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [retryKey]);
 
   useEffect(() => {
     if (state.loading || state.error) return;
@@ -137,15 +152,7 @@ export const TradeEligibilityGate = ({ onReady }: Props) => {
   };
 
   if (state.loading) {
-    return (
-      <div
-        className="rounded-3xl border border-slate-200 bg-white/90 p-8 text-center text-sm text-slate-600"
-        aria-busy="true"
-        aria-live="polite"
-      >
-        Checking eligibility…
-      </div>
-    );
+    return <LoadingCard message="Checking eligibility…" />;
   }
 
   if (state.error) {
@@ -153,12 +160,21 @@ export const TradeEligibilityGate = ({ onReady }: Props) => {
       <div className="rounded-3xl border border-slate-200 bg-white/90 p-8 text-center text-sm text-slate-600">
         <p className="font-semibold text-slate-900">Eligibility check failed</p>
         <p className="mt-2">{state.error}</p>
-        <Link
-          href="/"
-          className="mt-6 inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-500"
-        >
-          Back to Home
-        </Link>
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={handleRetry}
+            className="inline-flex items-center rounded-full border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-500"
+          >
+            Retry
+          </button>
+          <Link
+            href="/"
+            className="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-500"
+          >
+            Back to Home
+          </Link>
+        </div>
       </div>
     );
   }
@@ -185,8 +201,10 @@ export const TradeEligibilityGate = ({ onReady }: Props) => {
     );
   }
 
+  // Keep a stable loading placeholder until the parent swaps to the swap UI
+  // (avoids a blank flash when already attested).
   if (state.attested) {
-    return null;
+    return <LoadingCard message="Loading trade…" />;
   }
 
   return (
