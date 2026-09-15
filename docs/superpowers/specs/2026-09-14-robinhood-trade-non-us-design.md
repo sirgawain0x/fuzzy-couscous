@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-14  
 **Branch:** `feature/robinhood-trade-homepage`  
-**Status:** Awaiting user review of this spec
+**Status:** Approved — implementation plan ready
 
 ## Goal
 
@@ -167,4 +167,4 @@ Document `TRADE_GEO_BYPASS` in `.env.template`.
 
 ## Approval
 
-- [ ] User approved this spec — proceed to implementation plan
+- [x] User approved this spec — proceed to implementation plan
